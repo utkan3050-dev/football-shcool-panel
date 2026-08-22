@@ -2,21 +2,30 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 import sqlite3
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
+import os
+
 
 app = Flask(__name__)
-app.secret_key = "football-school-secret-key"
 
-import os
+app.secret_key = os.environ.get(
+    "SECRET_KEY",
+    "local-development-secret"
+)
 
 DB_NAME = os.environ.get(
     "DATABASE_PATH",
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "school.db")
 )
 
-# Şimdilik bizim Süper Admin hesabımız.
-# Siteyi internete açmadan önce bunları değiştireceğiz.
-SUPERADMIN_USERNAME = "admin"
-SUPERADMIN_PASSWORD = "1234"
+SUPERADMIN_USERNAME = os.environ.get(
+    "SUPERADMIN_USERNAME",
+    "admin"
+)
+
+SUPERADMIN_PASSWORD = os.environ.get(
+    "SUPERADMIN_PASSWORD",
+    "1234"
+)
 
 
 def get_db():
