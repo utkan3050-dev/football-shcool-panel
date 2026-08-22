@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Giriş | Futbol Okulu Paneli</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="login-body">
+
+<div class="login-card">
+    <h1>⚽ Futbol Okulu Paneli</h1>
+    <p>Yönetim paneline giriş yap</p>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST">
+        <label>Kullanıcı Adı</label>
+        <input type="text" name="username" placeholder="Kullanıcı adı" required>
+
+        <label>Şifre</label>
+        <input type="password" name="password" placeholder="Şifre" required>
+
+        <button type="submit" class="btn primary full">Giriş Yap</button>
+    </form>
+
+
+</body>
+</html>

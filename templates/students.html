@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Öğrenciler | Futbol Okulu</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<header class="topbar">
+
+    <div>
+        <h2>⚽ {{ session.school_name or "Futbol Okulu Paneli" }}</h2>
+    </div>
+
+    <div class="top-actions">
+
+        <a
+            href="{{ url_for(
+                'dashboard',
+                year=selected_year,
+                month=selected_month
+            ) }}"
+            class="btn"
+        >
+            Ana Sayfa
+        </a>
+
+        <a href="{{ url_for('add_student') }}" class="btn primary">
+            + Öğrenci Ekle
+        </a>
+
+        <a href="{{ url_for('logout') }}" class="btn danger">
+            Çıkış
+        </a>
+
+    </div>
+
+</header>
+
+<main class="container">
+
+    <div class="page-title">
+
+        <div>
+            <h1>Öğrenciler</h1>
+            <p>
+                {{ month_name }} {{ selected_year }} ödeme durumları
+            </p>
+        </div>
+
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert success-alert">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <section class="panel-section">
+
+        <form method="GET" class="student-filter-bar">
+
+            <input
+                type="text"
+                name="search"
+                value="{{ search }}"
+                placeholder="Öğrenci, veli veya telefon ara..."
+            >
+
+            <select name="birth_year">
+
+                <option value="">
+                    Tüm yaş grupları
+                </option>
+
+                {% for year in years %}
+
+                    <option
+                        value="{{ year.birth_year }}"
+                        {% if birth_year == year.birth_year|string %}
+                            selected
+                        {% endif %}
+                    >
+                        {{ year.birth_year }}
+                    </option>
+
+                {% endfor %}
+
+            </select>
+
+            <select name="payment">
+
+                <option value="">
+                    Tüm ödeme durumları
+                </option>
+
+                <option
+                    value="paid"
+                    {% if payment == "paid" %}
+                        selected
+                    {% endif %}
+                >
+                    Ödeyenler
+                </option>
+
+                <option
+                    value="unpaid"
+                    {% if payment == "unpaid" %}
+                        selected
+                    {% endif %}
+                >
+                    Ödemeyenler
+                </option>
+
+            </select>
+
+            <select name="month">
+
+                {% for number, name in months.items() %}
+
+                    <option
+                        value="{{ number }}"
+                        {% if number == selected_month %}
+                            selected
+                        {% endif %}
+                    >
+                        {{ name }}
+                    </option>
+
+                {% endfor %}
+
+            </select>
+
+            <select name="year">
+
+                {% for year in range(selected_year - 2, selected_year + 3) %}
+
+                    <option
+                        value="{{ year }}"
+                        {% if year == selected_year %}
+                            selected
+                        {% endif %}
+                    >
+                        {{ year }}
+                    </option>
+
+                {% endfor %}
+
+            </select>
+
+            <button type="submit" class="btn primary">
+                Filtrele
+            </button>
+
+            <a
+                href="{{ url_for(
+                    'students',
+                    year=selected_year,
+                    month=selected_month
+                ) }}"
+                class="btn"
+            >
+                Temizle
+            </a>
+
+        </form>
+
+        <div class="selected-period">
+
+            <strong>
+                Gösterilen dönem:
+                {{ month_name }} {{ selected_year }}
+            </strong>
+
+        </div>
+
+        {% if students %}
+
+        <div class="table-wrapper">
+
+            <table>
+
+                <thead>
+
+                    <tr>
+                        <th>Öğrenci</th>
+                        <th>Yaş Grubu</th>
+                        <th>Veli</th>
+                        <th>Telefon</th>
+                        <th>Aidat</th>
+                        <th>Ödeme</th>
+                        <th>Ödeme Tarihi</th>
+                        <th>Durum</th>
+                        <th>İşlemler</th>
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                    {% for student in students %}
+
+                    <tr>
+
+                        <td>
+                            <strong>{{ student.name }}</strong>
+                        </td>
+
+                        <td>
+                            <span class="badge">
+                                {{ student.birth_year }}
+                            </span>
+                        </td>
+
+                        <td>
+                            {{ student.parent_name or "-" }}
+                        </td>
+
+                        <td>
+                            {{ student.phone or "-" }}
+                        </td>
+
+                        <td>
+                            {{ "%.2f"|format(student.monthly_fee) }} TL
+                        </td>
+
+                        <td>
+
+                            {% if student.paid %}
+
+                                <span class="payment paid">
+                                    ✓ Ödendi
+                                </span>
+
+                            {% else %}
+
+                                <span class="payment unpaid">
+                                    Bekliyor
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+                        <td>
+                            {{ student.paid_at or "-" }}
+                        </td>
+
+                        <td>
+
+                            {% if student.active %}
+
+                                <span class="status active">
+                                    Aktif
+                                </span>
+
+                            {% else %}
+
+                                <span class="status passive">
+                                    Pasif
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+                        <td class="actions">
+
+                            <form
+                                method="POST"
+                                action="{{ url_for(
+                                    'toggle_payment',
+                                    student_id=student.id
+                                ) }}"
+                            >
+
+                                <input
+                                    type="hidden"
+                                    name="year"
+                                    value="{{ selected_year }}"
+                                >
+
+                                <input
+                                    type="hidden"
+                                    name="month"
+                                    value="{{ selected_month }}"
+                                >
+
+                                {% if student.paid %}
+
+                                    <button
+                                        type="submit"
+                                        class="btn"
+                                    >
+                                        Ödenmedi Yap
+                                    </button>
+
+                                {% else %}
+
+                                    <button
+                                        type="submit"
+                                        class="btn success"
+                                    >
+                                        Ödendi Yap
+                                    </button>
+
+                                {% endif %}
+
+                            </form>
+
+                            <a
+                                href="{{ url_for(
+                                    'edit_student',
+                                    student_id=student.id
+                                ) }}"
+                                class="btn"
+                            >
+                                Düzenle
+                            </a>
+
+                            {% if student.phone %}
+
+                            <a
+                                target="_blank"
+                                class="btn whatsapp"
+                                href="https://wa.me/90{{ student.phone|replace(' ', '')|replace('(', '')|replace(')', '')|replace('-', '')|replace('+90', '')|replace('0', '', 1) }}"
+                            >
+                                WhatsApp
+                            </a>
+
+                            {% endif %}
+
+                            <form
+                                method="POST"
+                                action="{{ url_for(
+                                    'delete_student',
+                                    student_id=student.id
+                                ) }}"
+                                onsubmit="return confirm('Bu öğrenciyi silmek istediğine emin misin?');"
+                            >
+
+                                <button
+                                    type="submit"
+                                    class="btn danger"
+                                >
+                                    Sil
+                                </button>
+
+                            </form>
+
+                        </td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+        {% else %}
+
+        <div class="empty-state">
+            Bu filtrelere uygun öğrenci bulunamadı.
+        </div>
+
+        {% endif %}
+
+    </section>
+
+</main>
+
+</body>
+</html>

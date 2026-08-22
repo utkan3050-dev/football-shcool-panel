@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel | Futbol Okulları</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<header class="topbar">
+    <div>
+        <h2>⚽ Futbol Okulları Süper Admin</h2>
+    </div>
+
+    <div class="top-actions">
+        <a href="{{ url_for('admin_add_school') }}" class="btn primary">
+            + Futbol Okulu Ekle
+        </a>
+
+        <a href="{{ url_for('logout') }}" class="btn danger">
+            Çıkış
+        </a>
+    </div>
+</header>
+
+<main class="container">
+
+    <div class="page-title">
+        <div>
+            <h1>Yönetim Paneli</h1>
+            <p>Tüm futbol okullarını buradan yönetebilirsin.</p>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert success-alert">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <section class="stats-grid">
+
+        <div class="stat-card">
+            <span>Toplam Futbol Okulu</span>
+            <strong>{{ total_schools }}</strong>
+        </div>
+
+        <div class="stat-card success-card">
+            <span>Aktif Futbol Okulu</span>
+            <strong>{{ active_schools }}</strong>
+        </div>
+
+        <div class="stat-card money-card">
+            <span>Toplam Aktif Öğrenci</span>
+            <strong>{{ total_students }}</strong>
+        </div>
+
+    </section>
+
+    <section class="panel-section">
+
+        <div class="section-header">
+            <div>
+                <h2>Futbol Okulları</h2>
+                <p>Sistemdeki okul hesaplarını görüntüle ve yönet.</p>
+            </div>
+        </div>
+
+        {% if schools %}
+
+        <div class="table-wrapper">
+            <table>
+
+                <thead>
+                    <tr>
+                        <th>Okul</th>
+                        <th>Kullanıcı Adı</th>
+                        <th>Öğrenci</th>
+                        <th>Durum</th>
+                        <th>Oluşturulma</th>
+                        <th>Şifre Değiştir</th>
+                        <th>İşlem</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+
+                    {% for school in schools %}
+
+                    <tr>
+
+                        <td>
+                            <strong>{{ school.name }}</strong>
+                        </td>
+
+                        <td>
+                            <span class="badge">
+                                {{ school.username }}
+                            </span>
+                        </td>
+
+                        <td>
+                            {{ school.student_count }}
+                        </td>
+
+                        <td>
+                            {% if school.active %}
+                                <span class="status active">
+                                    Aktif
+                                </span>
+                            {% else %}
+                                <span class="status passive">
+                                    Pasif
+                                </span>
+                            {% endif %}
+                        </td>
+
+                        <td>
+                            {{ school.created_at }}
+                        </td>
+
+                        <td>
+                            <form
+                                method="POST"
+                                action="{{ url_for('admin_change_school_password', school_id=school.id) }}"
+                                class="inline-password-form"
+                            >
+                                <input
+                                    type="password"
+                                    name="new_password"
+                                    placeholder="Yeni şifre"
+                                    minlength="4"
+                                    required
+                                >
+
+                                <button type="submit" class="btn">
+                                    Değiştir
+                                </button>
+                            </form>
+                        </td>
+
+                        <td>
+                            <form
+                                method="POST"
+                                action="{{ url_for('admin_toggle_school', school_id=school.id) }}"
+                            >
+
+                                {% if school.active %}
+
+                                    <button
+                                        type="submit"
+                                        class="btn danger"
+                                    >
+                                        Pasif Yap
+                                    </button>
+
+                                {% else %}
+
+                                    <button
+                                        type="submit"
+                                        class="btn success"
+                                    >
+                                        Aktif Yap
+                                    </button>
+
+                                {% endif %}
+
+                            </form>
+                        </td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+        </div>
+
+        {% else %}
+
+        <div class="empty-state">
+            Henüz futbol okulu eklenmedi.
+        </div>
+
+        {% endif %}
+
+    </section>
+
+</main>
+
+</body>
+</html>

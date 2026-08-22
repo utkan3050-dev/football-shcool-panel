@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Futbol Okulu Ekle | Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<header class="topbar">
+    <h2>⚽ Futbol Okulları Süper Admin</h2>
+
+    <div class="top-actions">
+        <a href="{{ url_for('admin_dashboard') }}" class="btn">
+            Admin Ana Sayfa
+        </a>
+
+        <a href="{{ url_for('logout') }}" class="btn danger">
+            Çıkış
+        </a>
+    </div>
+</header>
+
+<main class="container small-container">
+
+    <div class="page-title">
+        <div>
+            <h1>Yeni Futbol Okulu</h1>
+            <p>Yeni okul için giriş hesabı oluştur.</p>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <section class="form-card">
+
+        <form method="POST">
+
+            <div class="form-grid">
+
+                <div class="form-group full-width">
+                    <label>Futbol Okulu Adı *</label>
+
+                    <input
+                        type="text"
+                        name="name"
+                        placeholder="Örn: Kastamonu Yıldız Futbol Akademisi"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label>Kullanıcı Adı *</label>
+
+                    <input
+                        type="text"
+                        name="username"
+                        placeholder="Örn: kastamonuyildiz"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label>Şifre *</label>
+
+                    <input
+                        type="password"
+                        name="password"
+                        minlength="4"
+                        placeholder="En az 4 karakter"
+                        required
+                    >
+                </div>
+
+            </div>
+
+            <div class="form-actions">
+
+                <a
+                    href="{{ url_for('admin_dashboard') }}"
+                    class="btn"
+                >
+                    İptal
+                </a>
+
+                <button type="submit" class="btn primary">
+                    Futbol Okulunu Oluştur
+                </button>
+
+            </div>
+
+        </form>
+
+    </section>
+
+</main>
+
+</body>
+</html>
