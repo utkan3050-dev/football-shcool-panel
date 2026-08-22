@@ -80,6 +80,7 @@ def init_db():
     conn.commit()
     conn.close()
 
+init_db()
 
 def school_logged_in():
     return (
@@ -936,5 +937,4 @@ def delete_student(student_id):
 
 
 if __name__ == "__main__":
-    init_db()
     app.run(debug=True)
