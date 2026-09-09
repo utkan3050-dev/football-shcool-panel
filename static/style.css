@@ -528,3 +528,116 @@ textarea:focus {
         flex: 1;
     }
 }
+
+.finance-summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 28px;
+}
+
+.finance-summary > div {
+    background: white;
+    padding: 15px 18px;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+}
+
+.finance-summary span {
+    display: block;
+    color: #6b7280;
+    font-size: 12px;
+    margin-bottom: 5px;
+}
+
+.finance-summary strong {
+    font-size: 17px;
+}
+
+.attendance-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.attendance-check input {
+    width: 20px;
+    height: 20px;
+}
+
+.attendance-save {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+.attendance-history {
+    margin-top: 25px;
+}
+
+.expense-form-card {
+    margin-bottom: 25px;
+}
+
+.expense-form-card h2 {
+    margin-bottom: 20px;
+}
+
+.expense-form-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr auto;
+    gap: 12px;
+    align-items: end;
+}
+
+.expense-add-button {
+    padding-bottom: 1px;
+}
+
+.expense-stats {
+    grid-template-columns: minmax(250px, 350px);
+}
+
+@media (max-width: 850px) {
+
+    .finance-summary {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .expense-form-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 550px) {
+
+    .finance-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .expense-form-grid {
+        grid-template-columns: 1fr;
+    }
+}
+/* Yoklama - Geldi / Gelmedi */
+.attendance-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    cursor: pointer;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.attendance-option input[type="radio"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.present-option span,
+.absent-option span {
+    font-size: 14px;
+}

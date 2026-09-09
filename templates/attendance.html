@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yoklama | Futbol Okulu</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<header class="topbar">
+    <div>
+        <h2>⚽ {{ session.school_name or "Futbol Okulu Paneli" }}</h2>
+    </div>
+
+    <div class="top-actions">
+        <a href="{{ url_for('dashboard') }}" class="btn">Ana Sayfa</a>
+        <a href="{{ url_for('students') }}" class="btn">Öğrenciler</a>
+        <a href="{{ url_for('expenses') }}" class="btn">Giderler</a>
+        <a href="{{ url_for('logout') }}" class="btn danger">Çıkış</a>
+    </div>
+</header>
+
+<main class="container">
+
+    <div class="dashboard-heading">
+        <div>
+            <h1>Yoklama</h1>
+            <p>Öğrencilerin antrenman katılımını tarih ve yaş grubuna göre takip edin.</p>
+        </div>
+
+        <form method="GET" class="compact-period-form">
+            <input
+                type="date"
+                name="date"
+                value="{{ selected_date }}"
+            >
+
+            <select name="birth_year">
+                <option value="">Tüm Yaş Grupları</option>
+
+                {% for item in birth_years %}
+                    <option
+                        value="{{ item.birth_year }}"
+                        {% if selected_birth_year|string == item.birth_year|string %}selected{% endif %}
+                    >
+                        {{ item.birth_year }}
+                    </option>
+                {% endfor %}
+            </select>
+
+            <button type="submit" class="btn primary">
+                Göster
+            </button>
+        </form>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert success-alert">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <section class="panel-section">
+
+        <div class="section-header">
+            <div>
+                <h2>
+                    {{ selected_date }} Yoklaması
+                    {% if selected_birth_year %}
+                        - {{ selected_birth_year }} Grubu
+                    {% endif %}
+                </h2>
+                <p>Her öğrenci için Geldi veya Gelmedi seçin.</p>
+            </div>
+        </div>
+
+        {% if students %}
+
+        <form method="POST">
+
+            <input
+                type="hidden"
+                name="attendance_date"
+                value="{{ selected_date }}"
+            >
+
+            <input
+                type="hidden"
+                name="birth_year"
+                value="{{ selected_birth_year }}"
+            >
+
+            <div class="table-wrapper">
+
+                <table>
+
+                    <thead>
+                        <tr>
+                            <th>Öğrenci</th>
+                            <th>Yaş Grubu</th>
+                            <th>Veli</th>
+                            <th>Geldi</th>
+                            <th>Gelmedi</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                    {% for student in students %}
+
+                        <tr>
+
+                            <td>
+                                <strong>{{ student.name }}</strong>
+                            </td>
+
+                            <td>
+                                <span class="badge">
+                                    {{ student.birth_year }}
+                                </span>
+                            </td>
+
+                            <td>
+                                {{ student.parent_name or "-" }}
+                            </td>
+
+                            <td>
+                                <label class="attendance-option present-option">
+                                    <input
+                                        type="radio"
+                                        name="attendance_{{ student.id }}"
+                                        value="present"
+                                        {% if student.attendance_saved and student.present == 1 %}checked{% endif %}
+                                    >
+                                    <span>✅ Geldi</span>
+                                </label>
+                            </td>
+
+                            <td>
+                                <label class="attendance-option absent-option">
+                                    <input
+                                        type="radio"
+                                        name="attendance_{{ student.id }}"
+                                        value="absent"
+                                        {% if student.attendance_saved and student.present == 0 %}checked{% endif %}
+                                    >
+                                    <span>❌ Gelmedi</span>
+                                </label>
+                            </td>
+
+                        </tr>
+
+                    {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+            <div class="attendance-save">
+                <button type="submit" class="btn primary">
+                    Yoklamayı Kaydet
+                </button>
+            </div>
+
+        </form>
+
+        {% else %}
+
+        <div class="empty-state">
+            Bu yaş grubunda aktif öğrenci bulunmuyor.
+        </div>
+
+        {% endif %}
+
+    </section>
+
+    <section class="panel-section attendance-history">
+
+        <div class="section-header">
+            <div>
+                <h2>Geçmiş Yoklamalar</h2>
+                <p>Son 15 yoklama günü.</p>
+            </div>
+        </div>
+
+        {% if history %}
+
+        <div class="table-wrapper">
+
+            <table>
+
+                <thead>
+                    <tr>
+                        <th>Tarih</th>
+                        <th>Geldi</th>
+                        <th>Gelmedi</th>
+                        <th>İşlem</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+
+                {% for item in history %}
+
+                    <tr>
+                        <td>
+                            <strong>{{ item.attendance_date }}</strong>
+                        </td>
+
+                        <td>
+                            {{ item.present_count }}
+                        </td>
+
+                        <td>
+                            {{ item.absent_count }}
+                        </td>
+
+                        <td>
+                            <a
+                                href="{{ url_for(
+                                    'attendance',
+                                    date=item.attendance_date,
+                                    birth_year=selected_birth_year
+                                ) }}"
+                                class="btn"
+                            >
+                                Görüntüle
+                            </a>
+                        </td>
+                    </tr>
+
+                {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+        {% else %}
+
+        <div class="empty-state">
+            Henüz yoklama kaydı bulunmuyor.
+        </div>
+
+        {% endif %}
+
+    </section>
+
+</main>
+
+</body>
+</html>

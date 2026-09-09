@@ -86,6 +86,36 @@ def init_db():
         )
     """)
 
+    # YOKLAMA
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS attendance (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id INTEGER NOT NULL,
+            attendance_date TEXT NOT NULL,
+            present INTEGER DEFAULT 0,
+            created_at TEXT,
+            FOREIGN KEY (student_id)
+                REFERENCES students(id)
+                ON DELETE CASCADE,
+            UNIQUE(student_id, attendance_date)
+        )
+    """)
+
+    # GİDERLER
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS expenses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            school_id INTEGER NOT NULL,
+            description TEXT NOT NULL,
+            amount REAL NOT NULL DEFAULT 0,
+            expense_date TEXT NOT NULL,
+            created_at TEXT,
+            FOREIGN KEY (school_id)
+                REFERENCES schools(id)
+                ON DELETE CASCADE
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -469,6 +499,20 @@ def dashboard():
         expected_income - total_income
     )
 
+    total_expenses = conn.execute("""
+        SELECT COALESCE(SUM(amount), 0)
+        FROM expenses
+        WHERE school_id = ?
+        AND CAST(strftime('%Y', expense_date) AS INTEGER) = ?
+        AND CAST(strftime('%m', expense_date) AS INTEGER) = ?
+    """, (
+        school_id,
+        year,
+        month
+    )).fetchone()[0]
+
+    net_cash = total_income - total_expenses
+
     unpaid_list = conn.execute("""
         SELECT
             s.*,
@@ -500,6 +544,8 @@ def dashboard():
         expected_income=expected_income,
         total_income=total_income,
         remaining_income=remaining_income,
+        total_expenses=total_expenses,
+        net_cash=net_cash,
         unpaid_list=unpaid_list,
         selected_year=year,
         selected_month=month,
@@ -909,6 +955,320 @@ def toggle_payment(student_id):
             month=month
         )
     )
+
+
+# ------------------------------------------------
+# YOKLAMA
+# ------------------------------------------------
+
+@app.route("/attendance", methods=["GET", "POST"])
+def attendance():
+
+    if not school_logged_in():
+        return redirect(url_for("login"))
+
+    school_id = session["school_id"]
+
+    selected_date = request.args.get(
+        "date",
+        datetime.now().strftime("%Y-%m-%d")
+    )
+
+    selected_birth_year = request.args.get(
+        "birth_year",
+        ""
+    ).strip()
+
+    if request.method == "POST":
+
+        selected_date = request.form.get(
+            "attendance_date",
+            datetime.now().strftime("%Y-%m-%d")
+        )
+
+        selected_birth_year = request.form.get(
+            "birth_year",
+            ""
+        ).strip()
+
+        conn = get_db()
+
+        query = """
+            SELECT id
+            FROM students
+            WHERE school_id = ?
+            AND active = 1
+        """
+
+        params = [school_id]
+
+        if selected_birth_year:
+            query += " AND birth_year = ?"
+            params.append(selected_birth_year)
+
+        students_list = conn.execute(
+            query,
+            params
+        ).fetchall()
+
+        for student in students_list:
+
+            student_id = student["id"]
+
+            status = request.form.get(
+                f"attendance_{student_id}"
+            )
+
+            # Seçilmemiş öğrenciyi değiştirme.
+            if status not in ("present", "absent"):
+                continue
+
+            present = 1 if status == "present" else 0
+
+            conn.execute("""
+                INSERT INTO attendance
+                (
+                    student_id,
+                    attendance_date,
+                    present,
+                    created_at
+                )
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(student_id, attendance_date)
+                DO UPDATE SET
+                    present = excluded.present,
+                    created_at = excluded.created_at
+            """, (
+                student_id,
+                selected_date,
+                present,
+                datetime.now().strftime(
+                    "%d.%m.%Y %H:%M"
+                )
+            ))
+
+        conn.commit()
+        conn.close()
+
+        flash("Yoklama başarıyla kaydedildi.")
+
+        return redirect(
+            url_for(
+                "attendance",
+                date=selected_date,
+                birth_year=selected_birth_year
+            )
+        )
+
+    conn = get_db()
+
+    query = """
+        SELECT
+            s.*,
+            a.present AS present,
+            CASE
+                WHEN a.id IS NULL THEN 0
+                ELSE 1
+            END AS attendance_saved
+        FROM students s
+        LEFT JOIN attendance a
+            ON a.student_id = s.id
+            AND a.attendance_date = ?
+        WHERE s.school_id = ?
+        AND s.active = 1
+    """
+
+    params = [
+        selected_date,
+        school_id
+    ]
+
+    if selected_birth_year:
+        query += " AND s.birth_year = ?"
+        params.append(selected_birth_year)
+
+    query += """
+        ORDER BY
+            s.birth_year DESC,
+            s.name ASC
+    """
+
+    student_list = conn.execute(
+        query,
+        params
+    ).fetchall()
+
+    birth_years = conn.execute("""
+        SELECT DISTINCT birth_year
+        FROM students
+        WHERE school_id = ?
+        AND active = 1
+        ORDER BY birth_year DESC
+    """, (
+        school_id,
+    )).fetchall()
+
+    history = conn.execute("""
+        SELECT
+            a.attendance_date,
+            SUM(
+                CASE
+                    WHEN a.present = 1 THEN 1
+                    ELSE 0
+                END
+            ) AS present_count,
+            SUM(
+                CASE
+                    WHEN a.present = 0 THEN 1
+                    ELSE 0
+                END
+            ) AS absent_count
+        FROM attendance a
+        JOIN students s
+            ON s.id = a.student_id
+        WHERE s.school_id = ?
+        GROUP BY a.attendance_date
+        ORDER BY a.attendance_date DESC
+        LIMIT 15
+    """, (
+        school_id,
+    )).fetchall()
+
+    conn.close()
+
+    return render_template(
+        "attendance.html",
+        students=student_list,
+        selected_date=selected_date,
+        selected_birth_year=selected_birth_year,
+        birth_years=birth_years,
+        history=history
+    )
+
+
+# ------------------------------------------------
+# GİDERLER
+# ------------------------------------------------
+
+@app.route("/expenses", methods=["GET", "POST"])
+def expenses():
+
+    if not school_logged_in():
+        return redirect(url_for("login"))
+
+    school_id = session["school_id"]
+    year, month = get_selected_period()
+
+    if request.method == "POST":
+        description = request.form.get("description", "").strip()
+        amount = request.form.get("amount", type=float)
+        expense_date = request.form.get(
+            "expense_date",
+            datetime.now().strftime("%Y-%m-%d")
+        )
+
+        if not description:
+            flash("Gider açıklaması boş bırakılamaz.")
+            return redirect(url_for("expenses", year=year, month=month))
+
+        if amount is None or amount <= 0:
+            flash("Geçerli bir gider tutarı girin.")
+            return redirect(url_for("expenses", year=year, month=month))
+
+        try:
+            expense_dt = datetime.strptime(expense_date, "%Y-%m-%d")
+        except (TypeError, ValueError):
+            flash("Geçerli bir gider tarihi seçin.")
+            return redirect(url_for("expenses", year=year, month=month))
+
+        conn = get_db()
+
+        conn.execute("""
+            INSERT INTO expenses
+            (school_id, description, amount, expense_date, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, (
+            school_id,
+            description,
+            amount,
+            expense_date,
+            datetime.now().strftime("%d.%m.%Y %H:%M")
+        ))
+
+        conn.commit()
+        conn.close()
+
+        flash("Gider başarıyla eklendi.")
+        return redirect(url_for(
+            "expenses",
+            year=expense_dt.year,
+            month=expense_dt.month
+        ))
+
+    conn = get_db()
+
+    expense_list = conn.execute("""
+        SELECT *
+        FROM expenses
+        WHERE school_id = ?
+        AND CAST(strftime('%Y', expense_date) AS INTEGER) = ?
+        AND CAST(strftime('%m', expense_date) AS INTEGER) = ?
+        ORDER BY expense_date DESC, id DESC
+    """, (
+        school_id,
+        year,
+        month
+    )).fetchall()
+
+    total_expenses = conn.execute("""
+        SELECT COALESCE(SUM(amount), 0)
+        FROM expenses
+        WHERE school_id = ?
+        AND CAST(strftime('%Y', expense_date) AS INTEGER) = ?
+        AND CAST(strftime('%m', expense_date) AS INTEGER) = ?
+    """, (
+        school_id,
+        year,
+        month
+    )).fetchone()[0]
+
+    conn.close()
+
+    return render_template(
+        "expenses.html",
+        expenses=expense_list,
+        total_expenses=total_expenses,
+        selected_year=year,
+        selected_month=month,
+        month_name=MONTH_NAMES[month],
+        months=MONTH_NAMES
+    )
+
+
+@app.route("/expense/<int:expense_id>/delete", methods=["POST"])
+def delete_expense(expense_id):
+
+    if not school_logged_in():
+        return redirect(url_for("login"))
+
+    school_id = session["school_id"]
+
+    conn = get_db()
+
+    conn.execute("""
+        DELETE FROM expenses
+        WHERE id = ?
+        AND school_id = ?
+    """, (
+        expense_id,
+        school_id
+    ))
+
+    conn.commit()
+    conn.close()
+
+    flash("Gider silindi.")
+    return redirect(request.referrer or url_for("expenses"))
 
 
 @app.route(
