@@ -340,10 +340,27 @@
                                     %}
                                 {% endif %}
 
+                                {% set phone_clean = student.phone
+                                    |replace(' ', '')
+                                    |replace('(', '')
+                                    |replace(')', '')
+                                    |replace('-', '')
+                                %}
+
+                                {% if phone_clean[:3] == '+90' %}
+                                    {% set whatsapp_phone = phone_clean[3:] %}
+                                {% elif phone_clean[:2] == '90' and phone_clean|length == 12 %}
+                                    {% set whatsapp_phone = phone_clean[2:] %}
+                                {% elif phone_clean[:1] == '0' %}
+                                    {% set whatsapp_phone = phone_clean[1:] %}
+                                {% else %}
+                                    {% set whatsapp_phone = phone_clean %}
+                                {% endif %}
+
                             <a
                                 target="_blank"
                                 class="btn whatsapp"
-                                href="https://wa.me/90{{ student.phone|replace(' ', '')|replace('(', '')|replace(')', '')|replace('-', '')|replace('+90', '')|replace('0', '', 1) }}?text={{ whatsapp_message|urlencode }}"
+                                href="https://wa.me/90{{ whatsapp_phone }}?text={{ whatsapp_message|urlencode }}"
                             >
                                 WhatsApp Mesajı
                             </a>
