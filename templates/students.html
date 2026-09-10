@@ -326,12 +326,26 @@
 
                             {% if student.phone %}
 
+                                {% if student.paid %}
+                                    {% set whatsapp_message =
+                                        "Merhaba, iyi günler. " ~ student.name ~
+                                        " isimli öğrencimizin " ~ month_name ~ " " ~ selected_year|string ~
+                                        " ayı aidat ödemesi alınmıştır. Teşekkür ederiz."
+                                    %}
+                                {% else %}
+                                    {% set whatsapp_message =
+                                        "Merhaba, iyi günler. " ~ student.name ~
+                                        " isimli öğrencimizin " ~ month_name ~ " " ~ selected_year|string ~
+                                        " ayı aidat ödemesi henüz sistemde görünmemektedir. Bilginize."
+                                    %}
+                                {% endif %}
+
                             <a
                                 target="_blank"
                                 class="btn whatsapp"
-                                href="https://wa.me/90{{ student.phone|replace(' ', '')|replace('(', '')|replace(')', '')|replace('-', '')|replace('+90', '')|replace('0', '', 1) }}"
+                                href="https://wa.me/90{{ student.phone|replace(' ', '')|replace('(', '')|replace(')', '')|replace('-', '')|replace('+90', '')|replace('0', '', 1) }}?text={{ whatsapp_message|urlencode }}"
                             >
-                                WhatsApp
+                                WhatsApp Mesajı
                             </a>
 
                             {% endif %}
