@@ -7,104 +7,53 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-
 <header class="topbar">
-
     <h2>⚽ Futbol Okulu Paneli</h2>
-
     <div class="top-actions">
         <a href="{{ url_for('dashboard') }}" class="btn">Ana Sayfa</a>
         <a href="{{ url_for('students') }}" class="btn">Öğrenciler</a>
     </div>
-
 </header>
-
 <main class="container small-container">
-
-    <div class="page-title">
-        <div>
-            <h1>Yeni Öğrenci Ekle</h1>
-            <p>Öğrenci ve veli bilgilerini sisteme kaydet.</p>
-        </div>
-    </div>
-
+    <div class="page-title"><div><h1>Yeni Öğrenci Ekle</h1><p>Öğrenci ve veli bilgilerini sisteme kaydet.</p></div></div>
     <section class="form-card">
-
         <form method="POST">
-
             <div class="form-grid">
-
                 <div class="form-group">
                     <label>Öğrenci Adı Soyadı *</label>
-                    <input
-                        type="text"
-                        name="name"
-                        placeholder="Örn: Utkan Döner"
-                        required>
+                    <input type="text" name="name" placeholder="Örn: Utkan Döner" required>
                 </div>
-
                 <div class="form-group">
                     <label>Doğum Yılı *</label>
-                    <input
-                        type="number"
-                        name="birth_year"
-                        min="1990"
-                        max="2030"
-                        placeholder="Örn: 2013"
-                        required>
+                    <input type="number" name="birth_year" min="1990" max="2030" placeholder="Örn: 2013" required>
                 </div>
-
+                <div class="form-group">
+                    <label>Sınıf / Grup</label>
+                    <input type="text" name="class_group" placeholder="Örn: Cumartesi 11:00">
+                </div>
                 <div class="form-group">
                     <label>Veli Adı Soyadı</label>
-                    <input
-                        type="text"
-                        name="parent_name"
-                        placeholder="Veli adı">
+                    <input type="text" name="parent_name" placeholder="Veli adı">
                 </div>
-
                 <div class="form-group">
                     <label>Telefon</label>
-                    <input
-                        type="text"
-                        name="phone"
-                        placeholder="05XX XXX XX XX">
+                    <input type="text" name="phone" placeholder="05XX XXX XX XX">
                 </div>
-
                 <div class="form-group">
                     <label>Aylık Aidat (TL)</label>
-                    <input
-                        type="number"
-                        name="monthly_fee"
-                        min="0"
-                        step="0.01"
-                        placeholder="Örn: 1500">
+                    <input type="number" name="monthly_fee" min="0" step="0.01" placeholder="Örn: 1500">
                 </div>
-
                 <div class="form-group full-width">
                     <label>Not</label>
-                    <textarea
-                        name="notes"
-                        rows="4"
-                        placeholder="Öğrenci hakkında not..."></textarea>
+                    <textarea name="notes" rows="4" placeholder="Öğrenci hakkında not..."></textarea>
                 </div>
-
             </div>
-
             <div class="form-actions">
-                <a href="{{ url_for('students') }}" class="btn">
-                    İptal
-                </a>
-
-                <button type="submit" class="btn primary">
-                    Öğrenciyi Kaydet
-                </button>
+                <a href="{{ url_for('students') }}" class="btn">İptal</a>
+                <button type="submit" class="btn primary">Öğrenciyi Kaydet</button>
             </div>
-
         </form>
-
     </section>
-
 </main>
-
 </body>
 </html>

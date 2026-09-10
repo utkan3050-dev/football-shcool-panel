@@ -1,8 +1,11 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file
 import sqlite3
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
+import csv
+import io
+import zipfile
 
 
 app = Flask(__name__)
@@ -57,6 +60,7 @@ def init_db():
             school_id INTEGER NOT NULL,
             name TEXT NOT NULL,
             birth_year INTEGER NOT NULL,
+            class_group TEXT,
             parent_name TEXT,
             phone TEXT,
             monthly_fee REAL DEFAULT 0,
@@ -115,6 +119,15 @@ def init_db():
                 ON DELETE CASCADE
         )
     """)
+
+    # MEVCUT VERİTABANLARI İÇİN SÜTUN GÖÇÜ
+    student_columns = [
+        row[1]
+        for row in conn.execute("PRAGMA table_info(students)").fetchall()
+    ]
+
+    if "class_group" not in student_columns:
+        conn.execute("ALTER TABLE students ADD COLUMN class_group TEXT")
 
     conn.commit()
     conn.close()
@@ -568,20 +581,10 @@ def students():
 
     year, month = get_selected_period()
 
-    search = request.args.get(
-        "search",
-        ""
-    ).strip()
-
-    birth_year = request.args.get(
-        "birth_year",
-        ""
-    ).strip()
-
-    payment = request.args.get(
-        "payment",
-        ""
-    ).strip()
+    search = request.args.get("search", "").strip()
+    birth_year = request.args.get("birth_year", "").strip()
+    class_group = request.args.get("class_group", "").strip()
+    payment = request.args.get("payment", "").strip()
 
     query = """
         SELECT
@@ -596,73 +599,59 @@ def students():
         WHERE s.school_id = ?
     """
 
-    params = [
-        year,
-        month,
-        school_id
-    ]
+    params = [year, month, school_id]
 
     if search:
-
         query += """
             AND (
                 s.name LIKE ?
                 OR s.parent_name LIKE ?
                 OR s.phone LIKE ?
+                OR s.class_group LIKE ?
             )
         """
-
         term = f"%{search}%"
-
-        params.extend([
-            term,
-            term,
-            term
-        ])
+        params.extend([term, term, term, term])
 
     if birth_year:
+        query += " AND s.birth_year = ?"
+        params.append(birth_year)
 
-        query += """
-            AND s.birth_year = ?
-        """
-
-        params.append(
-            birth_year
-        )
+    if class_group:
+        query += " AND s.class_group = ?"
+        params.append(class_group)
 
     if payment == "paid":
-
-        query += """
-            AND COALESCE(p.paid, 0) = 1
-        """
-
+        query += " AND COALESCE(p.paid, 0) = 1"
     elif payment == "unpaid":
-
-        query += """
-            AND COALESCE(p.paid, 0) = 0
-        """
+        query += " AND COALESCE(p.paid, 0) = 0"
 
     query += """
         ORDER BY
             s.birth_year DESC,
+            COALESCE(s.class_group, '') ASC,
             s.name ASC
     """
 
     conn = get_db()
 
-    student_list = conn.execute(
-        query,
-        params
-    ).fetchall()
+    student_list = conn.execute(query, params).fetchall()
 
     years = conn.execute("""
         SELECT DISTINCT birth_year
         FROM students
         WHERE school_id = ?
         ORDER BY birth_year DESC
-    """, (
-        school_id,
-    )).fetchall()
+    """, (school_id,)).fetchall()
+
+    class_groups = conn.execute("""
+        SELECT DISTINCT class_group
+        FROM students
+        WHERE school_id = ?
+        AND class_group IS NOT NULL
+        AND TRIM(class_group) != ''
+        ORDER BY class_group ASC
+    """, (school_id,)).fetchall()
 
     conn.close()
 
@@ -670,8 +659,10 @@ def students():
         "students.html",
         students=student_list,
         years=years,
+        class_groups=class_groups,
         search=search,
         birth_year=birth_year,
+        class_group=class_group,
         payment=payment,
         selected_year=year,
         selected_month=month,
@@ -695,6 +686,7 @@ def add_student():
 
         name = request.form.get("name")
         birth_year = request.form.get("birth_year")
+        class_group = request.form.get("class_group", "").strip()
         parent_name = request.form.get("parent_name")
         phone = request.form.get("phone")
         monthly_fee = request.form.get("monthly_fee") or 0
@@ -708,6 +700,7 @@ def add_student():
                 school_id,
                 name,
                 birth_year,
+                class_group,
                 parent_name,
                 phone,
                 monthly_fee,
@@ -715,11 +708,12 @@ def add_student():
                 notes,
                 created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
         """, (
             school_id,
             name,
             birth_year,
+            class_group,
             parent_name,
             phone,
             monthly_fee,
@@ -776,6 +770,7 @@ def edit_student(student_id):
 
         name = request.form.get("name")
         birth_year = request.form.get("birth_year")
+        class_group = request.form.get("class_group", "").strip()
         parent_name = request.form.get("parent_name")
         phone = request.form.get("phone")
         monthly_fee = request.form.get("monthly_fee") or 0
@@ -792,6 +787,7 @@ def edit_student(student_id):
             SET
                 name = ?,
                 birth_year = ?,
+                class_group = ?,
                 parent_name = ?,
                 phone = ?,
                 monthly_fee = ?,
@@ -802,6 +798,7 @@ def edit_student(student_id):
         """, (
             name,
             birth_year,
+            class_group,
             parent_name,
             phone,
             monthly_fee,
@@ -958,6 +955,155 @@ def toggle_payment(student_id):
 
 
 # ------------------------------------------------
+# EXCEL / CSV YEDEK DIŞA AKTARMA
+# ------------------------------------------------
+
+@app.route("/export-backup")
+def export_backup():
+
+    if not school_logged_in():
+        return redirect(url_for("login"))
+
+    school_id = session["school_id"]
+    school_name = session.get("school_name", "futbol_okulu")
+
+    conn = get_db()
+
+    students_rows = conn.execute("""
+        SELECT
+            id,
+            name,
+            birth_year,
+            class_group,
+            parent_name,
+            phone,
+            monthly_fee,
+            active,
+            notes,
+            created_at
+        FROM students
+        WHERE school_id = ?
+        ORDER BY birth_year DESC, class_group ASC, name ASC
+    """, (school_id,)).fetchall()
+
+    payments_rows = conn.execute("""
+        SELECT
+            s.name AS student_name,
+            s.birth_year,
+            s.class_group,
+            p.year,
+            p.month,
+            p.amount,
+            p.paid,
+            p.paid_at
+        FROM payments p
+        JOIN students s ON s.id = p.student_id
+        WHERE s.school_id = ?
+        ORDER BY p.year DESC, p.month DESC, s.name ASC
+    """, (school_id,)).fetchall()
+
+    attendance_rows = conn.execute("""
+        SELECT
+            s.name AS student_name,
+            s.birth_year,
+            s.class_group,
+            a.attendance_date,
+            a.present,
+            a.created_at
+        FROM attendance a
+        JOIN students s ON s.id = a.student_id
+        WHERE s.school_id = ?
+        ORDER BY a.attendance_date DESC, s.name ASC
+    """, (school_id,)).fetchall()
+
+    expenses_rows = conn.execute("""
+        SELECT
+            description,
+            amount,
+            expense_date,
+            created_at
+        FROM expenses
+        WHERE school_id = ?
+        ORDER BY expense_date DESC, id DESC
+    """, (school_id,)).fetchall()
+
+    conn.close()
+
+    def make_csv(headers, rows, transform=None):
+        output = io.StringIO()
+        writer = csv.writer(output, delimiter=";")
+        writer.writerow(headers)
+
+        for row in rows:
+            values = list(row)
+            if transform:
+                values = transform(values)
+            writer.writerow(values)
+
+        return ("\ufeff" + output.getvalue()).encode("utf-8")
+
+    students_csv = make_csv(
+        [
+            "ID", "Öğrenci", "Doğum Yılı", "Sınıf / Grup",
+            "Veli", "Telefon", "Aylık Aidat", "Aktif",
+            "Not", "Kayıt Tarihi"
+        ],
+        students_rows,
+        lambda v: v[:7] + [("Evet" if v[7] else "Hayır")] + v[8:]
+    )
+
+    payments_csv = make_csv(
+        [
+            "Öğrenci", "Doğum Yılı", "Sınıf / Grup",
+            "Yıl", "Ay", "Tutar", "Ödeme Durumu", "Ödeme Tarihi"
+        ],
+        payments_rows,
+        lambda v: v[:6] + [("Ödendi" if v[6] else "Ödenmedi")] + v[7:]
+    )
+
+    attendance_csv = make_csv(
+        [
+            "Öğrenci", "Doğum Yılı", "Sınıf / Grup",
+            "Yoklama Tarihi", "Durum", "Kayıt Tarihi"
+        ],
+        attendance_rows,
+        lambda v: v[:4] + [("Geldi" if v[4] else "Gelmedi")] + v[5:]
+    )
+
+    expenses_csv = make_csv(
+        ["Açıklama", "Tutar", "Gider Tarihi", "Kayıt Tarihi"],
+        expenses_rows
+    )
+
+    zip_buffer = io.BytesIO()
+
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("ogrenciler.csv", students_csv)
+        archive.writestr("aidatlar.csv", payments_csv)
+        archive.writestr("yoklama.csv", attendance_csv)
+        archive.writestr("giderler.csv", expenses_csv)
+
+    zip_buffer.seek(0)
+
+    safe_school_name = "".join(
+        char if char.isalnum() else "_"
+        for char in school_name
+    ).strip("_") or "futbol_okulu"
+
+    filename = (
+        f"{safe_school_name}_yedek_"
+        f"{datetime.now().strftime('%Y-%m-%d')}.zip"
+    )
+
+    return send_file(
+        zip_buffer,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=filename
+    )
+
+
+# ------------------------------------------------
 # YOKLAMA
 # ------------------------------------------------
 
@@ -979,6 +1125,11 @@ def attendance():
         ""
     ).strip()
 
+    selected_class_group = request.args.get(
+        "class_group",
+        ""
+    ).strip()
+
     if request.method == "POST":
 
         selected_date = request.form.get(
@@ -988,6 +1139,11 @@ def attendance():
 
         selected_birth_year = request.form.get(
             "birth_year",
+            ""
+        ).strip()
+
+        selected_class_group = request.form.get(
+            "class_group",
             ""
         ).strip()
 
@@ -1005,6 +1161,10 @@ def attendance():
         if selected_birth_year:
             query += " AND birth_year = ?"
             params.append(selected_birth_year)
+
+        if selected_class_group:
+            query += " AND class_group = ?"
+            params.append(selected_class_group)
 
         students_list = conn.execute(
             query,
@@ -1056,7 +1216,8 @@ def attendance():
             url_for(
                 "attendance",
                 date=selected_date,
-                birth_year=selected_birth_year
+                birth_year=selected_birth_year,
+                class_group=selected_class_group
             )
         )
 
@@ -1087,9 +1248,14 @@ def attendance():
         query += " AND s.birth_year = ?"
         params.append(selected_birth_year)
 
+    if selected_class_group:
+        query += " AND s.class_group = ?"
+        params.append(selected_class_group)
+
     query += """
         ORDER BY
             s.birth_year DESC,
+            COALESCE(s.class_group, '') ASC,
             s.name ASC
     """
 
@@ -1104,6 +1270,18 @@ def attendance():
         WHERE school_id = ?
         AND active = 1
         ORDER BY birth_year DESC
+    """, (
+        school_id,
+    )).fetchall()
+
+    class_groups = conn.execute("""
+        SELECT DISTINCT class_group
+        FROM students
+        WHERE school_id = ?
+        AND active = 1
+        AND class_group IS NOT NULL
+        AND TRIM(class_group) != ''
+        ORDER BY class_group ASC
     """, (
         school_id,
     )).fetchall()
@@ -1141,7 +1319,9 @@ def attendance():
         students=student_list,
         selected_date=selected_date,
         selected_birth_year=selected_birth_year,
+        selected_class_group=selected_class_group,
         birth_years=birth_years,
+        class_groups=class_groups,
         history=history
     )
 
