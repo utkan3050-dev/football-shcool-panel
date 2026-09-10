@@ -9,18 +9,12 @@
 <body>
 
 <header class="topbar">
-
     <div>
         <h2>⚽ {{ session.school_name or "Futbol Okulu Paneli" }}</h2>
     </div>
 
     <div class="top-actions">
-
-        <a href="{{ url_for(
-            'students',
-            year=selected_year,
-            month=selected_month
-        ) }}" class="btn">
+        <a href="{{ url_for('students', year=selected_year, month=selected_month) }}" class="btn">
             Öğrenciler
         </a>
 
@@ -28,312 +22,184 @@
             Yoklama
         </a>
 
-        <a href="{{ url_for(
-            'expenses',
-            year=selected_year,
-            month=selected_month
-        ) }}" class="btn">
+        {% if finance_visible %}
+        <a href="{{ url_for('expenses', year=selected_year, month=selected_month) }}" class="btn">
             Giderler
         </a>
+        {% endif %}
 
         <a href="{{ url_for('add_student') }}" class="btn primary">
             + Öğrenci Ekle
         </a>
 
+        {% if finance_privacy_enabled %}
+            {% if finance_visible %}
+            <form method="POST" action="{{ url_for('finance_lock') }}" style="display:inline;">
+                <button type="submit" class="btn">🔒 Muhasebeyi Kilitle</button>
+            </form>
+            {% else %}
+            <a href="{{ url_for('finance_unlock') }}" class="btn primary">
+                🔐 Yönetici Girişi
+            </a>
+            {% endif %}
+        {% endif %}
+
         <a href="{{ url_for('logout') }}" class="btn danger">
             Çıkış
         </a>
-
     </div>
-
 </header>
 
 <main class="container">
 
     <div class="dashboard-heading">
-
         <div>
             <h1>Genel Durum</h1>
-
-            <p>
-                {{ month_name }} {{ selected_year }} genel durumu
-            </p>
+            <p>{{ month_name }} {{ selected_year }} genel durumu</p>
         </div>
 
         <form method="GET" class="compact-period-form">
-
             <select name="month">
-
                 {% for number, name in months.items() %}
-
-                    <option
-                        value="{{ number }}"
-                        {% if number == selected_month %}selected{% endif %}
-                    >
+                    <option value="{{ number }}" {% if number == selected_month %}selected{% endif %}>
                         {{ name }}
                     </option>
-
                 {% endfor %}
-
             </select>
 
             <select name="year">
-
-                {% for year in range(
-                    selected_year - 2,
-                    selected_year + 3
-                ) %}
-
-                    <option
-                        value="{{ year }}"
-                        {% if year == selected_year %}selected{% endif %}
-                    >
+                {% for year in range(selected_year - 2, selected_year + 3) %}
+                    <option value="{{ year }}" {% if year == selected_year %}selected{% endif %}>
                         {{ year }}
                     </option>
-
                 {% endfor %}
-
             </select>
 
-            <button type="submit" class="btn primary">
-                Göster
-            </button>
-
+            <button type="submit" class="btn primary">Göster</button>
         </form>
-
     </div>
 
     <section class="stats-grid">
-
         <div class="stat-card">
-
             <span>Toplam Aktif Öğrenci</span>
-
-            <strong>
-                {{ total_students }}
-            </strong>
-
+            <strong>{{ total_students }}</strong>
         </div>
 
         <div class="stat-card success-card">
-
             <span>{{ month_name }} Ödeyen</span>
-
-            <strong>
-                {{ paid_students }}
-            </strong>
-
+            <strong>{{ paid_students }}</strong>
         </div>
 
         <div class="stat-card warning-card">
-
             <span>{{ month_name }} Ödemeyen</span>
-
-            <strong>
-                {{ unpaid_students }}
-            </strong>
-
+            <strong>{{ unpaid_students }}</strong>
         </div>
 
+        {% if finance_visible %}
         <div class="stat-card money-card tahsilat-card">
-
             <span>Net Kasa</span>
-
-            <strong>
-                {{ "%.2f"|format(net_cash) }} TL
-            </strong>
-
-            <small>
-                Tahsilat:
-                {{ "%.2f"|format(total_income) }} TL
-            </small>
-
-            <small>
-                Gider:
-                {{ "%.2f"|format(total_expenses) }} TL
-            </small>
-
+            <strong>{{ "%.2f"|format(net_cash) }} TL</strong>
+            <small>Tahsilat: {{ "%.2f"|format(total_income) }} TL</small>
+            <small>Gider: {{ "%.2f"|format(total_expenses) }} TL</small>
         </div>
-
+        {% else %}
+        <div class="stat-card">
+            <span>Muhasebe</span>
+            <strong>🔒 Gizli</strong>
+            <small>Finansal bilgiler yalnızca yönetici PIN'i ile görüntülenir.</small>
+        </div>
+        {% endif %}
     </section>
 
+    {% if finance_visible %}
     <section class="finance-summary">
-
         <div>
             <span>Beklenen Aidat</span>
-            <strong>
-                {{ "%.2f"|format(expected_income) }} TL
-            </strong>
+            <strong>{{ "%.2f"|format(expected_income) }} TL</strong>
         </div>
-
         <div>
             <span>Tahsil Edilen</span>
-            <strong>
-                {{ "%.2f"|format(total_income) }} TL
-            </strong>
+            <strong>{{ "%.2f"|format(total_income) }} TL</strong>
         </div>
-
         <div>
             <span>Toplam Gider</span>
-            <strong>
-                {{ "%.2f"|format(total_expenses) }} TL
-            </strong>
+            <strong>{{ "%.2f"|format(total_expenses) }} TL</strong>
         </div>
-
         <div>
             <span>Kalan Aidat</span>
-            <strong>
-                {{ "%.2f"|format(remaining_income) }} TL
-            </strong>
+            <strong>{{ "%.2f"|format(remaining_income) }} TL</strong>
         </div>
-
     </section>
+    {% endif %}
 
     <section class="panel-section">
-
         <div class="section-header">
-
             <div>
-                <h2>
-                    {{ month_name }} Ayında Ödeme Yapmayanlar
-                </h2>
-
-                <p>
-                    Aidatı bekleyen aktif öğrenciler.
-                </p>
+                <h2>{{ month_name }} Ayında Ödeme Yapmayanlar</h2>
+                <p>Aidatı bekleyen aktif öğrenciler.</p>
             </div>
-
-            <a
-                href="{{ url_for(
-                    'students',
-                    payment='unpaid',
-                    year=selected_year,
-                    month=selected_month
-                ) }}"
-                class="btn"
-            >
+            <a href="{{ url_for('students', payment='unpaid', year=selected_year, month=selected_month) }}" class="btn">
                 Tümünü Gör
             </a>
-
         </div>
 
         {% if unpaid_list %}
-
         <div class="table-wrapper">
-
             <table>
-
                 <thead>
-
                     <tr>
                         <th>Öğrenci</th>
                         <th>Yaş Grubu</th>
                         <th>Veli</th>
                         <th>Telefon</th>
+                        {% if finance_visible %}
                         <th>Aidat</th>
+                        {% endif %}
                         <th>İşlem</th>
                     </tr>
-
                 </thead>
 
                 <tbody>
-
                 {% for student in unpaid_list %}
-
                     <tr>
+                        <td><strong>{{ student.name }}</strong></td>
+                        <td><span class="badge">{{ student.birth_year }}</span></td>
+                        <td>{{ student.parent_name or "-" }}</td>
+                        <td>{{ student.phone or "-" }}</td>
 
-                        <td>
-                            <strong>
-                                {{ student.name }}
-                            </strong>
-                        </td>
-
-                        <td>
-                            <span class="badge">
-                                {{ student.birth_year }}
-                            </span>
-                        </td>
-
-                        <td>
-                            {{ student.parent_name or "-" }}
-                        </td>
-
-                        <td>
-                            {{ student.phone or "-" }}
-                        </td>
-
-                        <td>
-                            {{ "%.2f"|format(student.monthly_fee) }} TL
-                        </td>
+                        {% if finance_visible %}
+                        <td>{{ "%.2f"|format(student.monthly_fee) }} TL</td>
+                        {% endif %}
 
                         <td class="actions">
-
-                            <form
-                                method="POST"
-                                action="{{ url_for(
-                                    'toggle_payment',
-                                    student_id=student.id
-                                ) }}"
-                            >
-
-                                <input
-                                    type="hidden"
-                                    name="year"
-                                    value="{{ selected_year }}"
-                                >
-
-                                <input
-                                    type="hidden"
-                                    name="month"
-                                    value="{{ selected_month }}"
-                                >
-
-                                <button
-                                    type="submit"
-                                    class="btn success"
-                                >
-                                    Ödendi Yap
-                                </button>
-
+                            <form method="POST" action="{{ url_for('toggle_payment', student_id=student.id) }}">
+                                <input type="hidden" name="year" value="{{ selected_year }}">
+                                <input type="hidden" name="month" value="{{ selected_month }}">
+                                <button type="submit" class="btn success">Ödendi Yap</button>
                             </form>
 
                             {% if student.phone %}
-
                             <a
                                 class="btn whatsapp"
                                 target="_blank"
-                                href="https://wa.me/90{{ student.phone|replace(' ', '')|replace('(', '')|replace(')', '')|replace('-', '')|replace('+90', '')|replace('0', '', 1) }}"
+                                href="{{ url_for('students', search=student.name, year=selected_year, month=selected_month) }}"
                             >
-                                WhatsApp
+                                WhatsApp için Öğrenciler
                             </a>
-
                             {% endif %}
-
                         </td>
-
                     </tr>
-
                 {% endfor %}
-
                 </tbody>
-
             </table>
-
         </div>
-
         {% else %}
-
         <div class="empty-state">
-
             🎉 {{ month_name }} ayında ödeme bekleyen öğrenci bulunmuyor.
-
         </div>
-
         {% endif %}
-
     </section>
 
 </main>
-
 </body>
 </html>

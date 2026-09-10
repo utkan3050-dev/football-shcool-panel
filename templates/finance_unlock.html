@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yönetici Girişi | Futbol Okulu</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<header class="topbar">
+    <h2>⚽ {{ session.school_name or "Futbol Okulu Paneli" }}</h2>
+
+    <div class="top-actions">
+        <a href="{{ url_for('dashboard') }}" class="btn">Ana Sayfa</a>
+        <a href="{{ url_for('logout') }}" class="btn danger">Çıkış</a>
+    </div>
+</header>
+
+<main class="container small-container">
+
+    <div class="page-title">
+        <div>
+            <h1>🔐 Yönetici Girişi</h1>
+            <p>Muhasebe ve finansal bilgileri görüntülemek için yönetici PIN'ini girin.</p>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <section class="form-card">
+        <form method="POST">
+            <input type="hidden" name="next" value="{{ request.args.get('next', '') }}">
+
+            <div class="form-group">
+                <label>Yönetici PIN'i</label>
+                <input
+                    type="password"
+                    name="pin"
+                    inputmode="numeric"
+                    autocomplete="off"
+                    placeholder="PIN"
+                    required
+                >
+            </div>
+
+            <div class="form-actions">
+                <a href="{{ url_for('dashboard') }}" class="btn">İptal</a>
+                <button type="submit" class="btn primary">Muhasebeyi Aç</button>
+            </div>
+        </form>
+    </section>
+
+</main>
+</body>
+</html>

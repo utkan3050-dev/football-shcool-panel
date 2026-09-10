@@ -16,7 +16,9 @@
     <div class="top-actions">
         <a href="{{ url_for('dashboard') }}" class="btn">Ana Sayfa</a>
         <a href="{{ url_for('students') }}" class="btn">Öğrenciler</a>
+        {% if finance_visible %}
         <a href="{{ url_for('expenses') }}" class="btn">Giderler</a>
+        {% endif %}
         <a href="{{ url_for('logout') }}" class="btn danger">Çıkış</a>
     </div>
 </header>

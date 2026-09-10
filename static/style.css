@@ -641,3 +641,21 @@ textarea:focus {
 .absent-option span {
     font-size: 14px;
 }
+/* Muhasebe gizliliği */
+.admin-finance-form {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.admin-finance-form input[type="password"] {
+    min-width: 220px;
+}
+
+.finance-locked-note {
+    padding: 14px 16px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    margin-bottom: 18px;
+}

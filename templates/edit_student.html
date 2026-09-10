@@ -39,10 +39,17 @@
                     <label>Telefon</label>
                     <input type="text" name="phone" value="{{ student.phone or '' }}">
                 </div>
+                {% if finance_visible %}
                 <div class="form-group">
                     <label>Aylık Aidat (TL)</label>
-                    <input type="number" name="monthly_fee" min="0" step="0.01" value="{{ student.monthly_fee }}">
+                    <input
+                        type="number"
+                        name="monthly_fee"
+                        min="0"
+                        step="0.01"
+                        value="{{ student.monthly_fee }}">
                 </div>
+                {% endif %}
                 <div class="form-group checkbox-group">
                     <label class="checkbox-label">
                         <input type="checkbox" name="active" {% if student.active %}checked{% endif %}> Öğrenci aktif

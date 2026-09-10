@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Muhasebe Gizliliği | Süper Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<header class="topbar">
+    <h2>⚙️ Muhasebe Gizliliği</h2>
+    <div class="top-actions">
+        <a href="{{ url_for('admin_dashboard') }}" class="btn">Admin Paneli</a>
+        <a href="{{ url_for('logout') }}" class="btn danger">Çıkış</a>
+    </div>
+</header>
+
+<main class="container">
+
+    <div class="page-title">
+        <div>
+            <h1>Okul Bazlı Muhasebe Kilidi</h1>
+            <p>Sadece isteyen futbol okullarında finansal bilgileri yönetici PIN'i ile koruyun.</p>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert success-alert">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <section class="panel-section">
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Futbol Okulu</th>
+                        <th>Kullanıcı Adı</th>
+                        <th>Durum</th>
+                        <th>Ayar</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for school in schools %}
+                    <tr>
+                        <td><strong>{{ school.name }}</strong></td>
+                        <td>{{ school.username }}</td>
+                        <td>
+                            {% if school.finance_privacy_enabled %}
+                                🔒 Açık
+                            {% else %}
+                                Açık değil
+                            {% endif %}
+                        </td>
+                        <td>
+                            <form method="POST" class="admin-finance-form">
+                                <input type="hidden" name="school_id" value="{{ school.id }}">
+
+                                <label>
+                                    <input
+                                        type="checkbox"
+                                        name="enabled"
+                                        {% if school.finance_privacy_enabled %}checked{% endif %}
+                                    >
+                                    Muhasebe gizliliği
+                                </label>
+
+                                <input
+                                    type="password"
+                                    name="pin"
+                                    placeholder="{% if school.has_finance_pin %}Yeni PIN (değiştirmek istersen){% else %}Yönetici PIN'i{% endif %}"
+                                    minlength="4"
+                                >
+
+                                <button type="submit" class="btn primary">
+                                    Kaydet
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+</main>
+</body>
+</html>

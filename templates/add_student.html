@@ -39,10 +39,17 @@
                     <label>Telefon</label>
                     <input type="text" name="phone" placeholder="05XX XXX XX XX">
                 </div>
+                {% if finance_visible %}
                 <div class="form-group">
                     <label>Aylık Aidat (TL)</label>
-                    <input type="number" name="monthly_fee" min="0" step="0.01" placeholder="Örn: 1500">
+                    <input
+                        type="number"
+                        name="monthly_fee"
+                        min="0"
+                        step="0.01"
+                        placeholder="Örn: 1500">
                 </div>
+                {% endif %}
                 <div class="form-group full-width">
                     <label>Not</label>
                     <textarea name="notes" rows="4" placeholder="Öğrenci hakkında not..."></textarea>

@@ -49,6 +49,8 @@ def init_db():
             username TEXT NOT NULL UNIQUE,
             password_hash TEXT NOT NULL,
             active INTEGER DEFAULT 1,
+            finance_privacy_enabled INTEGER DEFAULT 0,
+            finance_pin_hash TEXT,
             created_at TEXT
         )
     """)
@@ -129,6 +131,21 @@ def init_db():
     if "class_group" not in student_columns:
         conn.execute("ALTER TABLE students ADD COLUMN class_group TEXT")
 
+    school_columns = [
+        row[1]
+        for row in conn.execute("PRAGMA table_info(schools)").fetchall()
+    ]
+
+    if "finance_privacy_enabled" not in school_columns:
+        conn.execute(
+            "ALTER TABLE schools ADD COLUMN finance_privacy_enabled INTEGER DEFAULT 0"
+        )
+
+    if "finance_pin_hash" not in school_columns:
+        conn.execute(
+            "ALTER TABLE schools ADD COLUMN finance_pin_hash TEXT"
+        )
+
     conn.commit()
     conn.close()
 
@@ -146,6 +163,42 @@ def admin_logged_in():
     return (
         session.get("logged_in")
         and session.get("role") == "admin"
+    )
+
+
+def get_school_finance_settings(school_id):
+    conn = get_db()
+    row = conn.execute("""
+        SELECT
+            finance_privacy_enabled,
+            finance_pin_hash
+        FROM schools
+        WHERE id = ?
+    """, (school_id,)).fetchone()
+    conn.close()
+    return row
+
+
+def finance_is_required(school_id):
+    settings = get_school_finance_settings(school_id)
+    return bool(
+        settings
+        and settings["finance_privacy_enabled"]
+    )
+
+
+def finance_is_unlocked():
+    return (
+        session.get("finance_unlocked") is True
+        and session.get("finance_unlocked_school_id")
+        == session.get("school_id")
+    )
+
+
+def finance_can_view(school_id):
+    return (
+        not finance_is_required(school_id)
+        or finance_is_unlocked()
     )
 
 
@@ -444,6 +497,160 @@ def admin_change_school_password(school_id):
 
 
 # ------------------------------------------------
+# MUHASEBE GİZLİLİĞİ - SÜPER ADMIN
+# ------------------------------------------------
+
+@app.route("/admin/finance-settings", methods=["GET", "POST"])
+def admin_finance_settings():
+
+    if not admin_logged_in():
+        return redirect(url_for("login"))
+
+    conn = get_db()
+
+    if request.method == "POST":
+
+        school_id = request.form.get("school_id", type=int)
+        enabled = 1 if request.form.get("enabled") == "on" else 0
+        new_pin = request.form.get("pin", "").strip()
+
+        school = conn.execute("""
+            SELECT *
+            FROM schools
+            WHERE id = ?
+        """, (school_id,)).fetchone()
+
+        if not school:
+            conn.close()
+            flash("Futbol okulu bulunamadı.")
+            return redirect(url_for("admin_finance_settings"))
+
+        if enabled and not school["finance_pin_hash"] and len(new_pin) < 4:
+            conn.close()
+            flash("Muhasebe gizliliğini açmak için en az 4 haneli bir PIN girin.")
+            return redirect(url_for("admin_finance_settings"))
+
+        if new_pin:
+            if len(new_pin) < 4:
+                conn.close()
+                flash("PIN en az 4 karakter olmalı.")
+                return redirect(url_for("admin_finance_settings"))
+
+            conn.execute("""
+                UPDATE schools
+                SET
+                    finance_privacy_enabled = ?,
+                    finance_pin_hash = ?
+                WHERE id = ?
+            """, (
+                enabled,
+                generate_password_hash(new_pin),
+                school_id
+            ))
+        else:
+            conn.execute("""
+                UPDATE schools
+                SET finance_privacy_enabled = ?
+                WHERE id = ?
+            """, (
+                enabled,
+                school_id
+            ))
+
+        conn.commit()
+        conn.close()
+
+        flash("Muhasebe gizliliği ayarları güncellendi.")
+        return redirect(url_for("admin_finance_settings"))
+
+    schools = conn.execute("""
+        SELECT
+            id,
+            name,
+            username,
+            finance_privacy_enabled,
+            CASE
+                WHEN finance_pin_hash IS NOT NULL
+                     AND finance_pin_hash != ''
+                THEN 1
+                ELSE 0
+            END AS has_finance_pin
+        FROM schools
+        ORDER BY name ASC
+    """).fetchall()
+
+    conn.close()
+
+    return render_template(
+        "admin_finance_settings.html",
+        schools=schools
+    )
+
+
+# ------------------------------------------------
+# MUHASEBE GİZLİLİĞİ - OKUL
+# ------------------------------------------------
+
+@app.route("/finance/unlock", methods=["GET", "POST"])
+def finance_unlock():
+
+    if not school_logged_in():
+        return redirect(url_for("login"))
+
+    school_id = session["school_id"]
+    settings = get_school_finance_settings(school_id)
+
+    if not settings or not settings["finance_privacy_enabled"]:
+        return redirect(url_for("dashboard"))
+
+    if request.method == "POST":
+
+        pin = request.form.get("pin", "").strip()
+
+        if (
+            settings["finance_pin_hash"]
+            and check_password_hash(
+                settings["finance_pin_hash"],
+                pin
+            )
+        ):
+            session["finance_unlocked"] = True
+            session["finance_unlocked_school_id"] = school_id
+
+            flash("Yönetici muhasebe görünümü açıldı.")
+
+            next_url = request.form.get("next", "").strip()
+
+            if next_url.startswith("/"):
+                return redirect(next_url)
+
+            return redirect(url_for("dashboard"))
+
+        flash("Yönetici PIN'i yanlış.")
+
+    return render_template(
+        "finance_unlock.html"
+    )
+
+
+@app.route("/finance/lock", methods=["POST"])
+def finance_lock():
+
+    if not school_logged_in():
+        return redirect(url_for("login"))
+
+    session.pop("finance_unlocked", None)
+    session.pop("finance_unlocked_school_id", None)
+
+    flash("Muhasebe görünümü kilitlendi.")
+
+    return redirect(
+        request.referrer
+        or url_for("dashboard")
+    )
+
+
+# ------------------------------------------------
 # FUTBOL OKULU DASHBOARD
 # ------------------------------------------------
 
@@ -563,7 +770,9 @@ def dashboard():
         selected_year=year,
         selected_month=month,
         month_name=MONTH_NAMES[month],
-        months=MONTH_NAMES
+        months=MONTH_NAMES,
+        finance_privacy_enabled=finance_is_required(school_id),
+        finance_visible=finance_can_view(school_id)
     )
 
 
@@ -667,7 +876,9 @@ def students():
         selected_year=year,
         selected_month=month,
         month_name=MONTH_NAMES[month],
-        months=MONTH_NAMES
+        months=MONTH_NAMES,
+        finance_privacy_enabled=finance_is_required(school_id),
+        finance_visible=finance_can_view(school_id)
     )
 
 
@@ -689,7 +900,11 @@ def add_student():
         class_group = request.form.get("class_group", "").strip()
         parent_name = request.form.get("parent_name")
         phone = request.form.get("phone")
-        monthly_fee = request.form.get("monthly_fee") or 0
+        if finance_can_view(school_id):
+            monthly_fee = request.form.get("monthly_fee") or 0
+        else:
+            monthly_fee = 0
+
         notes = request.form.get("notes")
 
         conn = get_db()
@@ -735,7 +950,9 @@ def add_student():
         )
 
     return render_template(
-        "add_student.html"
+        "add_student.html",
+        finance_privacy_enabled=finance_is_required(school_id),
+        finance_visible=finance_can_view(school_id)
     )
 
 
@@ -773,7 +990,11 @@ def edit_student(student_id):
         class_group = request.form.get("class_group", "").strip()
         parent_name = request.form.get("parent_name")
         phone = request.form.get("phone")
-        monthly_fee = request.form.get("monthly_fee") or 0
+        if finance_can_view(school_id):
+            monthly_fee = request.form.get("monthly_fee") or 0
+        else:
+            monthly_fee = student["monthly_fee"]
+
         notes = request.form.get("notes")
 
         active = (
@@ -823,7 +1044,9 @@ def edit_student(student_id):
 
     return render_template(
         "edit_student.html",
-        student=student
+        student=student,
+        finance_privacy_enabled=finance_is_required(school_id),
+        finance_visible=finance_can_view(school_id)
     )
 
 
@@ -965,6 +1188,15 @@ def export_backup():
         return redirect(url_for("login"))
 
     school_id = session["school_id"]
+
+    if not finance_can_view(school_id):
+        flash("Dışa aktarma için yönetici PIN'i gerekli.")
+        return redirect(
+            url_for(
+                "finance_unlock",
+                next=request.path
+            )
+        )
     school_name = session.get("school_name", "futbol_okulu")
 
     conn = get_db()
@@ -1322,7 +1554,9 @@ def attendance():
         selected_class_group=selected_class_group,
         birth_years=birth_years,
         class_groups=class_groups,
-        history=history
+        history=history,
+        finance_privacy_enabled=finance_is_required(school_id),
+        finance_visible=finance_can_view(school_id)
     )
 
 
@@ -1337,6 +1571,16 @@ def expenses():
         return redirect(url_for("login"))
 
     school_id = session["school_id"]
+
+    if not finance_can_view(school_id):
+        flash("Gider ve kasa bilgileri için yönetici PIN'i gerekli.")
+        return redirect(
+            url_for(
+                "finance_unlock",
+                next=request.path
+            )
+        )
+
     year, month = get_selected_period()
 
     if request.method == "POST":
@@ -1432,6 +1676,10 @@ def delete_expense(expense_id):
         return redirect(url_for("login"))
 
     school_id = session["school_id"]
+
+    if not finance_can_view(school_id):
+        flash("Bu işlem için yönetici PIN'i gerekli.")
+        return redirect(url_for("finance_unlock"))
 
     conn = get_db()
 

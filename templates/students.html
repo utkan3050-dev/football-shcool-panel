@@ -30,12 +30,25 @@
         <a href="{{ url_for('attendance') }}" class="btn">Yoklama</a>
 
         <a href="{{ url_for('expenses') }}" class="btn">Giderler</a>
+        {% if finance_visible %}
 
-        <a href="{{ url_for('export_backup') }}" class="btn">Excel/CSV Yedeği İndir</a>
+        <a href="{{ url_for('export_backup') }}" class="btn">Excel/CSV Yedeği İndir</a>{% endif %}
 
         <a href="{{ url_for('add_student') }}" class="btn primary">
             + Öğrenci Ekle
         </a>
+
+        {% if finance_privacy_enabled %}
+            {% if finance_visible %}
+                <form method="POST" action="{{ url_for('finance_lock') }}" style="display:inline;">
+                    <button type="submit" class="btn">🔒 Muhasebeyi Kilitle</button>
+                </form>
+            {% else %}
+                <a href="{{ url_for('finance_unlock') }}" class="btn primary">
+                    🔐 Yönetici Girişi
+                </a>
+            {% endif %}
+        {% endif %}
 
         <a href="{{ url_for('logout') }}" class="btn danger">
             Çıkış
@@ -209,9 +222,13 @@
                         <th>Sınıf / Grup</th>
                         <th>Veli</th>
                         <th>Telefon</th>
-                        <th>Aidat</th>
+                        {% if finance_visible %}
+                            <th>Aidat</th>
+                        {% endif %}
                         <th>Ödeme</th>
-                        <th>Ödeme Tarihi</th>
+                        {% if finance_visible %}
+                            <th>Ödeme Tarihi</th>
+                        {% endif %}
                         <th>Durum</th>
                         <th>İşlemler</th>
                     </tr>
@@ -246,9 +263,11 @@
                             {{ student.phone or "-" }}
                         </td>
 
+                        {% if finance_visible %}
                         <td>
                             {{ "%.2f"|format(student.monthly_fee) }} TL
                         </td>
+                        {% endif %}
 
                         <td>
 
@@ -268,9 +287,11 @@
 
                         </td>
 
+                        {% if finance_visible %}
                         <td>
                             {{ student.paid_at or "-" }}
                         </td>
+                        {% endif %}
 
                         <td>
 
