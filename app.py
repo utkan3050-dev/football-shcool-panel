@@ -311,6 +311,74 @@ def logout():
     return redirect(url_for("login"))
 
 
+
+# ------------------------------------------------
+# FUTBOL OKULU - ŞİFRE DEĞİŞTİR
+# ------------------------------------------------
+
+@app.route("/change-password", methods=["GET", "POST"])
+def change_password():
+
+    if not school_logged_in():
+        return redirect(url_for("login"))
+
+    school_id = session["school_id"]
+
+    if request.method == "POST":
+        current_password = request.form.get("current_password", "")
+        new_password = request.form.get("new_password", "").strip()
+        confirm_password = request.form.get("confirm_password", "").strip()
+
+        if len(new_password) < 4:
+            flash("Yeni şifre en az 4 karakter olmalı.")
+            return render_template("change_password.html")
+
+        if new_password != confirm_password:
+            flash("Yeni şifreler eşleşmiyor.")
+            return render_template("change_password.html")
+
+        conn = get_db()
+
+        school = conn.execute("""
+            SELECT password_hash
+            FROM schools
+            WHERE id = ?
+        """, (school_id,)).fetchone()
+
+        if not school or not check_password_hash(
+            school["password_hash"],
+            current_password
+        ):
+            conn.close()
+            flash("Mevcut şifreniz yanlış.")
+            return render_template("change_password.html")
+
+        if check_password_hash(
+            school["password_hash"],
+            new_password
+        ):
+            conn.close()
+            flash("Yeni şifre mevcut şifrenizden farklı olmalı.")
+            return render_template("change_password.html")
+
+        conn.execute("""
+            UPDATE schools
+            SET password_hash = ?
+            WHERE id = ?
+        """, (
+            generate_password_hash(new_password),
+            school_id
+        ))
+
+        conn.commit()
+        conn.close()
+
+        flash("Şifreniz başarıyla değiştirildi.")
+        return redirect(url_for("dashboard"))
+
+    return render_template("change_password.html")
+
+
 # ------------------------------------------------
 # SÜPER ADMIN
 # ------------------------------------------------
@@ -456,6 +524,42 @@ def admin_toggle_school(school_id):
 
     conn.close()
 
+    return redirect(url_for("admin_dashboard"))
+
+
+@app.route(
+    "/admin/school/<int:school_id>/delete",
+    methods=["POST"]
+)
+def admin_delete_school(school_id):
+
+    if not admin_logged_in():
+        return redirect(url_for("login"))
+
+    conn = get_db()
+
+    school = conn.execute("""
+        SELECT name
+        FROM schools
+        WHERE id = ?
+    """, (school_id,)).fetchone()
+
+    if not school:
+        conn.close()
+        flash("Futbol okulu bulunamadı.")
+        return redirect(url_for("admin_dashboard"))
+
+    school_name = school["name"]
+
+    conn.execute("""
+        DELETE FROM schools
+        WHERE id = ?
+    """, (school_id,))
+
+    conn.commit()
+    conn.close()
+
+    flash(f"{school_name} ve bağlı tüm verileri kalıcı olarak silindi.")
     return redirect(url_for("admin_dashboard"))
 
 

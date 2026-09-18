@@ -91,6 +91,13 @@
         {% endif %}
 
         <a
+            href="{{ url_for('change_password') }}"
+            class="btn"
+        >
+            🔑 Şifre Değiştir
+        </a>
+
+        <a
             href="{{ url_for('logout') }}"
             class="btn danger"
         >

@@ -19,8 +19,8 @@
         </a>
 
         <a href="{{ url_for('admin_finance_settings') }}" class="btn primary">
-    🔐 Muhasebe Ayarları
-</a>
+            🔐 Muhasebe Ayarları
+        </a>
 
         <a href="{{ url_for('logout') }}" class="btn danger">
             Çıkış
@@ -48,7 +48,6 @@
     {% endwith %}
 
     <section class="stats-grid">
-
         <div class="stat-card">
             <span>Toplam Futbol Okulu</span>
             <strong>{{ total_schools }}</strong>
@@ -63,7 +62,6 @@
             <span>Toplam Aktif Öğrenci</span>
             <strong>{{ total_students }}</strong>
         </div>
-
     </section>
 
     <section class="panel-section">
@@ -88,14 +86,13 @@
                         <th>Durum</th>
                         <th>Oluşturulma</th>
                         <th>Şifre Değiştir</th>
-                        <th>İşlem</th>
+                        <th>Durum İşlemi</th>
+                        <th>Sil</th>
                     </tr>
                 </thead>
 
                 <tbody>
-
                     {% for school in schools %}
-
                     <tr>
 
                         <td>
@@ -114,13 +111,9 @@
 
                         <td>
                             {% if school.active %}
-                                <span class="status active">
-                                    Aktif
-                                </span>
+                                <span class="status active">Aktif</span>
                             {% else %}
-                                <span class="status passive">
-                                    Pasif
-                                </span>
+                                <span class="status passive">Pasif</span>
                             {% endif %}
                         </td>
 
@@ -141,7 +134,6 @@
                                     minlength="4"
                                     required
                                 >
-
                                 <button type="submit" class="btn">
                                     Değiştir
                                 </button>
@@ -153,34 +145,32 @@
                                 method="POST"
                                 action="{{ url_for('admin_toggle_school', school_id=school.id) }}"
                             >
-
                                 {% if school.active %}
-
-                                    <button
-                                        type="submit"
-                                        class="btn danger"
-                                    >
+                                    <button type="submit" class="btn danger">
                                         Pasif Yap
                                     </button>
-
                                 {% else %}
-
-                                    <button
-                                        type="submit"
-                                        class="btn success"
-                                    >
+                                    <button type="submit" class="btn success">
                                         Aktif Yap
                                     </button>
-
                                 {% endif %}
+                            </form>
+                        </td>
 
+                        <td>
+                            <form
+                                method="POST"
+                                action="{{ url_for('admin_delete_school', school_id=school.id) }}"
+                                onsubmit="return confirm('{{ school.name }} hesabını ve bu okula bağlı TÜM öğrenci, ödeme, yoklama ve gider verilerini kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.');"
+                            >
+                                <button type="submit" class="btn danger">
+                                    Kalıcı Sil
+                                </button>
                             </form>
                         </td>
 
                     </tr>
-
                     {% endfor %}
-
                 </tbody>
 
             </table>
