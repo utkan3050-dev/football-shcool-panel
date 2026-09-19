@@ -8,6 +8,13 @@
     <title>Panel | Futbol Okulu</title>
 
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <link rel="manifest" href="{{ url_for('manifest') }}">
+    <meta name="theme-color" content="#111827">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Futbol Okulu">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
 </head>
 
 <body>
@@ -89,6 +96,16 @@
             {% endif %}
 
         {% endif %}
+
+        <button
+            id="pwa-install-button"
+            type="button"
+            class="btn primary"
+            onclick="installPWA()"
+            style="display:none;"
+        >
+            📲 Uygulamayı Yükle
+        </button>
 
         <a
             href="{{ url_for('change_password') }}"
@@ -565,6 +582,57 @@
 
 </main>
 
+
+<script>
+let deferredPrompt = null;
+
+window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredPrompt = event;
+
+    const installButton = document.getElementById("pwa-install-button");
+    if (installButton) {
+        installButton.style.display = "inline-flex";
+    }
+});
+
+window.addEventListener("appinstalled", () => {
+    const installButton = document.getElementById("pwa-install-button");
+    if (installButton) {
+        installButton.style.display = "none";
+    }
+    deferredPrompt = null;
+});
+
+async function installPWA() {
+    if (deferredPrompt) {
+        deferredPrompt.prompt();
+        await deferredPrompt.userChoice;
+        deferredPrompt = null;
+
+        const installButton = document.getElementById("pwa-install-button");
+        if (installButton) {
+            installButton.style.display = "none";
+        }
+        return;
+    }
+
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+    if (isIOS) {
+        alert("Safari'de Paylaş butonuna dokunun ve 'Ana Ekrana Ekle' seçeneğini kullanın.");
+    } else {
+        alert("Tarayıcı menüsünden 'Uygulamayı yükle' veya 'Ana ekrana ekle' seçeneğini kullanın.");
+    }
+}
+
+if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/service-worker.js")
+            .catch((error) => console.error("Service Worker kayıt hatası:", error));
+    });
+}
+</script>
 
 </body>
 

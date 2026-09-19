@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file
+from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file, send_from_directory
 import sqlite3
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -1835,6 +1835,32 @@ def delete_student(student_id):
     return redirect(
         url_for("students")
     )
+
+
+
+# ------------------------------------------------
+# PWA
+# ------------------------------------------------
+
+@app.route("/manifest.webmanifest")
+def manifest():
+    return send_from_directory(
+        os.path.join(app.root_path, "static"),
+        "manifest.webmanifest",
+        mimetype="application/manifest+json"
+    )
+
+
+@app.route("/service-worker.js")
+def service_worker():
+    response = send_from_directory(
+        os.path.join(app.root_path, "static"),
+        "service-worker.js",
+        mimetype="application/javascript"
+    )
+    response.headers["Cache-Control"] = "no-cache"
+    response.headers["Service-Worker-Allowed"] = "/"
+    return response
 
 
 if __name__ == "__main__":

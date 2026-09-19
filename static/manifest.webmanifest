@@ -1,0 +1,24 @@
+{
+  "name": "Futbol Okulu Yönetim Paneli",
+  "short_name": "Futbol Okulu",
+  "description": "Öğrenci, aidat, yoklama, gider ve futbol okulu yönetim paneli.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#111827",
+  "theme_color": "#111827",
+  "icons": [
+    {
+      "src": "/static/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
