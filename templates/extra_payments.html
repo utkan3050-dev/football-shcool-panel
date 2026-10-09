@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Harici Ödemeler | Futbol Okulu</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="topbar">
+    <div>
+        <h2>⚽ {{ session.school_name or "Futbol Okulu Paneli" }}</h2>
+    </div>
+    <div class="top-actions">
+        <a href="{{ url_for('dashboard') }}" class="btn">Ana Sayfa</a>
+        <a href="{{ url_for('students') }}" class="btn">Öğrenciler</a>
+        <a href="{{ url_for('attendance') }}" class="btn">Yoklama</a>
+        <a href="{{ url_for('expenses') }}" class="btn">Giderler</a>
+        {% if finance_privacy_enabled %}
+            <form method="POST" action="{{ url_for('finance_lock') }}" style="display:inline;">
+                <button type="submit" class="btn">🔒 Muhasebeyi Kilitle</button>
+            </form>
+        {% endif %}
+        <a href="{{ url_for('logout') }}" class="btn danger">Çıkış</a>
+    </div>
+</header>
+
+<main class="container">
+    <div class="page-title">
+        <div>
+            <h1>Harici Ödemeler</h1>
+            <p>Forma, krampon, eşofman, kamp ve aidat dışındaki tüm öğrenci ödemelerini ayrı takip edin.</p>
+        </div>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert success-alert">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <section class="stats-grid expense-stats">
+        <div class="stat-card">
+            <span>Toplam Harici Ücret</span>
+            <strong>{{ "%.2f"|format(totals.total_amount) }} TL</strong>
+        </div>
+        <div class="stat-card success-card">
+            <span>Tahsil Edilen</span>
+            <strong>{{ "%.2f"|format(totals.paid_amount) }} TL</strong>
+        </div>
+        <div class="stat-card warning-card">
+            <span>Bekleyen</span>
+            <strong>{{ "%.2f"|format(totals.unpaid_amount) }} TL</strong>
+        </div>
+    </section>
+
+    <section class="form-card expense-form-card">
+        <h2>Yeni Harici Ödeme Ekle</h2>
+        <form method="POST">
+            <div class="expense-form-grid">
+                <div class="form-group">
+                    <label>Öğrenci *</label>
+                    <select name="student_id" required>
+                        <option value="">Öğrenci seçin</option>
+                        {% for student in students %}
+                            <option value="{{ student.id }}" {% if student_id_filter == student.id %}selected{% endif %}>
+                                {{ student.name }}{% if student.class_group %} — {{ student.class_group }}{% endif %}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Ödeme Adı *</label>
+                    <input type="text" name="title" placeholder="Örn: Forma Ücreti, Krampon, Kamp Ücreti" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Tutar (TL) *</label>
+                    <input type="number" name="amount" min="0.01" step="0.01" placeholder="Örn: 1250" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Tarih *</label>
+                    <input type="date" name="charge_date" value="{{ today }}" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Not</label>
+                    <input type="text" name="notes" placeholder="Örn: 10 yaş forma seti">
+                </div>
+
+                <div class="form-group">
+                    <label>Ödeme Tarihi</label>
+                    <input type="date" name="payment_date" value="{{ today }}">
+                </div>
+
+                <div class="form-group">
+                    <label style="display:flex; gap:8px; align-items:center; min-height:44px;">
+                        <input type="checkbox" name="paid" style="width:auto;">
+                        Ödeme alındı
+                    </label>
+                    <small>İşaretli değilse ödeme tarihi dikkate alınmaz.</small>
+                </div>
+
+                <div class="expense-add-button">
+                    <button type="submit" class="btn primary">+ Harici Ödeme Ekle</button>
+                </div>
+            </div>
+        </form>
+    </section>
+
+    <section class="panel-section">
+        <div class="section-header">
+            <div>
+                <h2>Harici Ödeme Kayıtları</h2>
+                <p>Öğrenci ve ödeme durumuna göre filtreleyebilirsiniz.</p>
+            </div>
+        </div>
+
+        <form method="GET" class="student-filter-bar">
+            <select name="student_id">
+                <option value="">Tüm öğrenciler</option>
+                {% for student in students %}
+                    <option value="{{ student.id }}" {% if student_id_filter == student.id %}selected{% endif %}>
+                        {{ student.name }}
+                    </option>
+                {% endfor %}
+            </select>
+            <select name="status">
+                <option value="" {% if not status %}selected{% endif %}>Tüm ödeme durumları</option>
+                <option value="paid" {% if status == 'paid' %}selected{% endif %}>Ödenenler</option>
+                <option value="unpaid" {% if status == 'unpaid' %}selected{% endif %}>Ödenmeyenler</option>
+            </select>
+            <button type="submit" class="btn primary">Filtrele</button>
+            <a href="{{ url_for('extra_payments') }}" class="btn">Temizle</a>
+        </form>
+
+        {% if extra_payments %}
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Tarih</th>
+                        <th>Öğrenci</th>
+                        <th>Ödeme Adı</th>
+                        <th>Tutar</th>
+                        <th>Durum</th>
+                        <th>Ödeme Tarihi</th>
+                        <th>Not</th>
+                        <th>İşlem</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for item in extra_payments %}
+                    <tr>
+                        <td>{{ item.charge_date }}</td>
+                        <td>
+                            <strong>{{ item.student_name }}</strong>
+                            {% if item.class_group %}<br><small>{{ item.class_group }}</small>{% endif %}
+                        </td>
+                        <td>{{ item.title }}</td>
+                        <td><strong>{{ "%.2f"|format(item.amount) }} TL</strong></td>
+                        <td>
+                            {% if item.paid %}
+                                <span class="payment paid">✓ Ödendi</span>
+                            {% else %}
+                                <span class="payment unpaid">Ödenmedi</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ item.payment_date or "-" }}</td>
+                        <td>{{ item.notes or "-" }}</td>
+                        <td>
+                            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                                <form method="POST" action="{{ url_for('toggle_extra_payment', payment_id=item.id) }}">
+                                    <button type="submit" class="btn {% if item.paid %}warning{% else %}primary{% endif %}">
+                                        {% if item.paid %}Ödenmedi Yap{% else %}Ödendi Yap{% endif %}
+                                    </button>
+                                </form>
+                                <form method="POST" action="{{ url_for('delete_extra_payment', payment_id=item.id) }}"
+                                      onsubmit="return confirm('Bu harici ödeme kaydını silmek istediğinize emin misiniz?');">
+                                    <button type="submit" class="btn danger">Sil</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+            <div class="empty-state">Henüz harici ödeme kaydı bulunmuyor.</div>
+        {% endif %}
+    </section>
+</main>
+</body>
+</html>

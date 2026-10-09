@@ -29,8 +29,9 @@
 
         <a href="{{ url_for('attendance') }}" class="btn">Yoklama</a>
 
-        <a href="{{ url_for('expenses') }}" class="btn">Giderler</a>
         {% if finance_visible %}
+        <a href="{{ url_for('extra_payments') }}" class="btn">Harici Ödemeler</a>
+        <a href="{{ url_for('expenses') }}" class="btn">Giderler</a>
 
         <a href="{{ url_for('export_backup') }}" class="btn">Excel/CSV Yedeği İndir</a>{% endif %}
 
@@ -364,6 +365,15 @@
                             >
                                 Düzenle
                             </a>
+
+                            {% if finance_visible %}
+                            <a
+                                href="{{ url_for('extra_payments', student_id=student.id) }}"
+                                class="btn"
+                            >
+                                Harici Ödeme
+                            </a>
+                            {% endif %}
 
                             {% if student.phone %}
 

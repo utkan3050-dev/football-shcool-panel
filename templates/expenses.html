@@ -19,6 +19,7 @@
         </a>
         <a href="{{ url_for('students') }}" class="btn">Öğrenciler</a>
         <a href="{{ url_for('attendance') }}" class="btn">Yoklama</a>
+        <a href="{{ url_for('extra_payments') }}" class="btn">Harici Ödemeler</a>
 
         <form method="POST" action="{{ url_for('finance_lock') }}" style="display:inline;">
             <button type="submit" class="btn">🔒 Muhasebeyi Kilitle</button>

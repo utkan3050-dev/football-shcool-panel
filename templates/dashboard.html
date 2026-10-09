@@ -47,6 +47,10 @@
 
         {% if finance_visible %}
 
+        <a href="{{ url_for('extra_payments') }}" class="btn">
+            Harici Ödemeler
+        </a>
+
         <a
             href="{{ url_for(
                 'expenses',
@@ -249,8 +253,13 @@
             </strong>
 
             <small>
-                Tahsilat:
+                Aidat Tahsilatı:
                 {{ "%.2f"|format(total_income) }} TL
+            </small>
+
+            <small>
+                Harici Tahsilat:
+                {{ "%.2f"|format(extra_income) }} TL
             </small>
 
             <small>
@@ -308,6 +317,19 @@
 
             <strong>
                 {{ "%.2f"|format(total_income) }} TL
+            </strong>
+
+        </div>
+
+
+        <div>
+
+            <span>
+                Harici Tahsilat
+            </span>
+
+            <strong>
+                {{ "%.2f"|format(extra_income) }} TL
             </strong>
 
         </div>

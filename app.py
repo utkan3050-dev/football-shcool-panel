@@ -107,6 +107,27 @@ def init_db():
                 ON DELETE CASCADE
         )
     """)
+    # HARİCİ ÖDEMELER / MALZEME VE DİĞER ÜCRETLER
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS extra_payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            school_id INTEGER NOT NULL,
+            student_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            amount REAL NOT NULL DEFAULT 0,
+            charge_date TEXT NOT NULL,
+            paid INTEGER DEFAULT 0,
+            payment_date TEXT,
+            notes TEXT,
+            created_at TEXT,
+            FOREIGN KEY (school_id)
+                REFERENCES schools(id)
+                ON DELETE CASCADE,
+            FOREIGN KEY (student_id)
+                REFERENCES students(id)
+                ON DELETE CASCADE
+        )
+    """)
     # MEVCUT VERİTABANLARI İÇİN SÜTUN GÖÇÜ
     student_columns = [
         row[1]
@@ -659,7 +680,19 @@ def dashboard():
         year,
         month
     )).fetchone()[0]
-    net_cash = total_income - total_expenses
+    extra_income = conn.execute("""
+        SELECT COALESCE(SUM(amount), 0)
+        FROM extra_payments
+        WHERE school_id = ?
+        AND paid = 1
+        AND CAST(strftime('%Y', payment_date) AS INTEGER) = ?
+        AND CAST(strftime('%m', payment_date) AS INTEGER) = ?
+    """, (
+        school_id,
+        year,
+        month
+    )).fetchone()[0]
+    net_cash = total_income + extra_income - total_expenses
     unpaid_list = conn.execute("""
         SELECT
             s.*,
@@ -688,6 +721,7 @@ def dashboard():
         unpaid_students=unpaid_students,
         expected_income=expected_income,
         total_income=total_income,
+        extra_income=extra_income,
         remaining_income=remaining_income,
         total_expenses=total_expenses,
         net_cash=net_cash,
@@ -1117,6 +1151,21 @@ def export_backup():
         WHERE school_id = ?
         ORDER BY expense_date DESC, id DESC
     """, (school_id,)).fetchall()
+    extra_payment_rows = conn.execute("""
+        SELECT
+            s.name AS student_name,
+            ep.title,
+            ep.amount,
+            ep.charge_date,
+            ep.paid,
+            ep.payment_date,
+            ep.notes,
+            ep.created_at
+        FROM extra_payments ep
+        JOIN students s ON s.id = ep.student_id
+        WHERE ep.school_id = ?
+        ORDER BY ep.charge_date DESC, ep.id DESC
+    """, (school_id,)).fetchall()
     conn.close()
     def make_csv(headers, rows, transform=None):
         output = io.StringIO()
@@ -1157,10 +1206,19 @@ def export_backup():
         ["Açıklama", "Tutar", "Gider Tarihi", "Kayıt Tarihi"],
         expenses_rows
     )
+    extra_payments_csv = make_csv(
+        [
+            "Öğrenci", "Ödeme Adı", "Tutar", "Eklenme Tarihi",
+            "Ödeme Durumu", "Ödeme Tarihi", "Not", "Kayıt Tarihi"
+        ],
+        extra_payment_rows,
+        lambda v: v[:4] + [("Ödendi" if v[4] else "Ödenmedi")] + v[5:]
+    )
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("ogrenciler.csv", students_csv)
         archive.writestr("aidatlar.csv", payments_csv)
+        archive.writestr("harici_odemeler.csv", extra_payments_csv)
         archive.writestr("yoklama.csv", attendance_csv)
         archive.writestr("giderler.csv", expenses_csv)
     zip_buffer.seek(0)
@@ -1367,6 +1425,194 @@ def attendance():
 # ------------------------------------------------
 # GİDERLER
 # ------------------------------------------------
+# ------------------------------------------------
+# HARİCİ ÖDEMELER / MALZEME VE DİĞER ÜCRETLER
+# ------------------------------------------------
+@app.route("/extra-payments", methods=["GET", "POST"])
+def extra_payments():
+    if not school_logged_in():
+        return redirect(url_for("login"))
+    school_id = session["school_id"]
+    if not finance_can_view(school_id):
+        flash("Harici ödeme bilgileri için yönetici PIN'i gerekli.")
+        return redirect(url_for("finance_unlock", next=request.path))
+
+    status = request.args.get("status", "").strip()
+    student_id_filter = request.args.get("student_id", type=int)
+
+    conn = get_db()
+
+    if request.method == "POST":
+        student_id = request.form.get("student_id", type=int)
+        title = request.form.get("title", "").strip()
+        amount = request.form.get("amount", type=float)
+        charge_date = request.form.get(
+            "charge_date",
+            datetime.now().strftime("%Y-%m-%d")
+        )
+        notes = request.form.get("notes", "").strip()
+        paid = 1 if request.form.get("paid") == "on" else 0
+        requested_payment_date = request.form.get("payment_date", "").strip()
+
+        student = conn.execute("""
+            SELECT id
+            FROM students
+            WHERE id = ? AND school_id = ?
+        """, (student_id, school_id)).fetchone()
+
+        if not student:
+            conn.close()
+            flash("Geçerli bir öğrenci seçin.")
+            return redirect(url_for("extra_payments"))
+        if not title:
+            conn.close()
+            flash("Ödeme adı boş bırakılamaz.")
+            return redirect(url_for("extra_payments"))
+        if amount is None or amount <= 0:
+            conn.close()
+            flash("Geçerli bir tutar girin.")
+            return redirect(url_for("extra_payments"))
+        try:
+            datetime.strptime(charge_date, "%Y-%m-%d")
+        except (TypeError, ValueError):
+            conn.close()
+            flash("Geçerli bir tarih seçin.")
+            return redirect(url_for("extra_payments"))
+
+        payment_date = None
+        if paid:
+            payment_date = requested_payment_date or datetime.now().strftime("%Y-%m-%d")
+            try:
+                datetime.strptime(payment_date, "%Y-%m-%d")
+            except (TypeError, ValueError):
+                conn.close()
+                flash("Geçerli bir ödeme tarihi seçin.")
+                return redirect(url_for("extra_payments"))
+        conn.execute("""
+            INSERT INTO extra_payments
+            (
+                school_id, student_id, title, amount, charge_date,
+                paid, payment_date, notes, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            school_id,
+            student_id,
+            title,
+            amount,
+            charge_date,
+            paid,
+            payment_date,
+            notes or None,
+            datetime.now().strftime("%d.%m.%Y %H:%M")
+        ))
+        conn.commit()
+        conn.close()
+        flash("Harici ödeme kaydı eklendi.")
+        return redirect(url_for("extra_payments"))
+
+    query = """
+        SELECT
+            ep.*,
+            s.name AS student_name,
+            s.phone AS student_phone,
+            s.class_group
+        FROM extra_payments ep
+        JOIN students s ON s.id = ep.student_id
+        WHERE ep.school_id = ?
+    """
+    params = [school_id]
+    if status == "paid":
+        query += " AND ep.paid = 1"
+    elif status == "unpaid":
+        query += " AND ep.paid = 0"
+    if student_id_filter:
+        query += " AND ep.student_id = ?"
+        params.append(student_id_filter)
+    query += " ORDER BY ep.charge_date DESC, ep.id DESC"
+
+    payment_list = conn.execute(query, params).fetchall()
+    students_for_select = conn.execute("""
+        SELECT id, name, class_group
+        FROM students
+        WHERE school_id = ? AND active = 1
+        ORDER BY name ASC
+    """, (school_id,)).fetchall()
+    totals = conn.execute("""
+        SELECT
+            COALESCE(SUM(amount), 0) AS total_amount,
+            COALESCE(SUM(CASE WHEN paid = 1 THEN amount ELSE 0 END), 0) AS paid_amount,
+            COALESCE(SUM(CASE WHEN paid = 0 THEN amount ELSE 0 END), 0) AS unpaid_amount
+        FROM extra_payments
+        WHERE school_id = ?
+    """, (school_id,)).fetchone()
+    conn.close()
+
+    return render_template(
+        "extra_payments.html",
+        extra_payments=payment_list,
+        students=students_for_select,
+        totals=totals,
+        status=status,
+        student_id_filter=student_id_filter,
+        today=datetime.now().strftime("%Y-%m-%d"),
+        finance_privacy_enabled=finance_is_required(school_id),
+        finance_visible=True
+    )
+
+
+@app.route("/extra-payment/<int:payment_id>/toggle", methods=["POST"])
+def toggle_extra_payment(payment_id):
+    if not school_logged_in():
+        return redirect(url_for("login"))
+    school_id = session["school_id"]
+    if not finance_can_view(school_id):
+        flash("Bu işlem için yönetici PIN'i gerekli.")
+        return redirect(url_for("finance_unlock", next=url_for("extra_payments")))
+
+    conn = get_db()
+    row = conn.execute("""
+        SELECT id, paid
+        FROM extra_payments
+        WHERE id = ? AND school_id = ?
+    """, (payment_id, school_id)).fetchone()
+    if not row:
+        conn.close()
+        return "Harici ödeme kaydı bulunamadı.", 404
+
+    new_paid = 0 if row["paid"] else 1
+    payment_date = datetime.now().strftime("%Y-%m-%d") if new_paid else None
+    conn.execute("""
+        UPDATE extra_payments
+        SET paid = ?, payment_date = ?
+        WHERE id = ? AND school_id = ?
+    """, (new_paid, payment_date, payment_id, school_id))
+    conn.commit()
+    conn.close()
+    flash("Harici ödeme durumu güncellendi.")
+    return redirect(request.referrer or url_for("extra_payments"))
+
+
+@app.route("/extra-payment/<int:payment_id>/delete", methods=["POST"])
+def delete_extra_payment(payment_id):
+    if not school_logged_in():
+        return redirect(url_for("login"))
+    school_id = session["school_id"]
+    if not finance_can_view(school_id):
+        flash("Bu işlem için yönetici PIN'i gerekli.")
+        return redirect(url_for("finance_unlock", next=url_for("extra_payments")))
+
+    conn = get_db()
+    conn.execute("""
+        DELETE FROM extra_payments
+        WHERE id = ? AND school_id = ?
+    """, (payment_id, school_id))
+    conn.commit()
+    conn.close()
+    flash("Harici ödeme kaydı silindi.")
+    return redirect(request.referrer or url_for("extra_payments"))
+
+
 @app.route("/expenses", methods=["GET", "POST"])
 def expenses():
     if not school_logged_in():
